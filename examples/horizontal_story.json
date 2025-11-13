@@ -1,0 +1,65 @@
+{
+  "output": {
+    "template": "youtube_16_9",
+    "filename": "demo_horizontal.mp4",
+    "format": "mp4",
+    "fps": 30
+  },
+  "clips": [
+    {
+      "source": "media/intro.mp4",
+      "start": 0,
+      "end": 5,
+      "fit_mode": "cover",
+      "transitions_after": [
+        {
+          "type": "crossfade",
+          "duration": 1.2
+        }
+      ]
+    },
+    {
+      "source": "media/main.mp4",
+      "start": 10,
+      "end": 40,
+      "fit_mode": "contain",
+      "background_mode": "blur"
+    }
+  ],
+  "audio": [
+    {
+      "source": "media/music.mp3",
+      "start": 0,
+      "volume": 0.7,
+      "fade_in": 2,
+      "fade_out": 3
+    }
+  ],
+  "texts": [
+    {
+      "content": "New Episode",
+      "start": 1,
+      "end": 4,
+      "position": "top_left",
+      "font_size": 72,
+      "color": {"r": 255, "g": 255, "b": 0, "a": 1},
+      "animation": {"fade_in": 0.5, "fade_out": 0.5}
+    }
+  ],
+  "images": [
+    {
+      "source": "media/logo.png",
+      "start": 0,
+      "end": 8,
+      "position": "top_right",
+      "size": {"width": 300, "height": 300},
+      "animation": {
+        "fade_in": 0.3,
+        "fade_out": 0.3,
+        "keyframes": [
+          {"time": 1.5, "duration": 1.0, "scale": 1.1}
+        ]
+      }
+    }
+  ]
+}

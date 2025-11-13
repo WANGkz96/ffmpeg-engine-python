@@ -1,0 +1,61 @@
+{
+  "output": {
+    "template": "instagram_square",
+    "filename": "carousel_square.mp4",
+    "format": "mp4",
+    "fps": 24
+  },
+  "clips": [
+    {
+      "source": "media/product.mp4",
+      "start": 0,
+      "end": 12,
+      "fit_mode": "contain",
+      "background_mode": "color",
+      "background_color": {"r": 20, "g": 20, "b": 20, "a": 1.0},
+      "transitions_after": [
+        {
+          "type": "crossfade",
+          "duration": 0.8
+        }
+      ]
+    },
+    {
+      "source": "media/detail.mp4",
+      "start": 3,
+      "end": 15,
+      "fit_mode": "cover"
+    }
+  ],
+  "audio": [
+    {
+      "source": "media/background_loop.mp3",
+      "start": 0,
+      "volume": 0.5
+    }
+  ],
+  "texts": [
+    {
+      "content": "Limited Offer",
+      "start": 0.2,
+      "end": 5.0,
+      "position": "bottom",
+      "font_size": 64,
+      "color": {"r": 255, "g": 255, "b": 255, "a": 1.0},
+      "stroke_color": {"r": 0, "g": 0, "b": 0, "a": 1.0},
+      "stroke_width": 4
+    }
+  ],
+  "images": [
+    {
+      "source": "media/cta.png",
+      "start": 6,
+      "end": 10,
+      "position": "center",
+      "animation": {
+        "fade_in": 0.4,
+        "fade_out": 0.4
+      }
+    }
+  ]
+}

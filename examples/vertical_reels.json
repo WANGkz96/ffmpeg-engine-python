@@ -1,0 +1,68 @@
+{
+  "output": {
+    "template": "tiktok_9_16",
+    "filename": "reel_mix.mp4",
+    "format": "mp4",
+    "fps": 30
+  },
+  "clips": [
+    {
+      "source": "media/interview.mp4",
+      "start": 5,
+      "end": 20,
+      "fit_mode": "contain",
+      "background_mode": "blur",
+      "adjustments": {
+        "brightness": 0.05,
+        "contrast": 0.1
+      },
+      "transitions_after": [
+        {
+          "type": "fade_black",
+          "duration": 0.6
+        }
+      ]
+    },
+    {
+      "source": "media/broll.mp4",
+      "start": 0,
+      "end": 12,
+      "fit_mode": "cover",
+      "chroma_key": {
+        "enabled": true,
+        "color": {"r": 0, "g": 255, "b": 0, "a": 1},
+        "threshold": 0.2,
+        "softness": 0.05
+      }
+    }
+  ],
+  "audio": [
+    {
+      "source": "media/voiceover.mp3",
+      "start": 0,
+      "end": 18,
+      "volume": 1.0
+    },
+    {
+      "source": "media/beat.mp3",
+      "start": 0,
+      "volume": 0.4,
+      "fade_in": 1.5,
+      "fade_out": 2
+    }
+  ],
+  "texts": [
+    {
+      "content": "Top 5 Tips",
+      "start": 0.5,
+      "end": 4.0,
+      "position": "center",
+      "font_size": 80,
+      "animation": {
+        "fade_in": 0.4,
+        "fade_out": 0.6
+      }
+    }
+  ],
+  "images": []
+}
