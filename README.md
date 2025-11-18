@@ -26,7 +26,7 @@ HTTP-based video rendering microservice powered by FastAPI, MoviePy, and FFmpeg.
    ```bash
    curl -X POST http://localhost:8000/render \
      -H "Content-Type: application/json" \
-     -d @examples/vertical_reels.json
+     -d @examples/test1.json
    ```
 
 See [API_REFERENCE.md](API_REFERENCE.md) for the full payload specification and the `examples/` directory for ready-to-use request bodies.

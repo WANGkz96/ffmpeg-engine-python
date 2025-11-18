@@ -8,6 +8,12 @@ from pathlib import Path
 from fastapi import Body, FastAPI, HTTPException, Request, Response
 from fastapi.responses import FileResponse, JSONResponse
 
+from PIL import Image
+
+if not hasattr(Image, "ANTIALIAS"):
+    # В новых версиях Pillow вместо ANTIALIAS используют Resampling.LANCZOS
+    Image.ANTIALIAS = Image.Resampling.LANCZOS
+
 from ffmpeg_engine.engine import VideoEngine
 from ffmpeg_engine.models import RenderRequest
 

@@ -19,11 +19,19 @@ class TransitionType(str, Enum):
     NONE = "none"
     CROSSFADE = "crossfade"
     FADE_BLACK = "fade_black"
+    WHIP_PAN = "whip_pan"
 
 
 class BackgroundMode(str, Enum):
     BLUR = "blur"
     COLOR = "color"
+
+
+class TransitionDirection(str, Enum):
+    LEFT = "left"
+    RIGHT = "right"
+    TOP = "top"
+    BOTTOM = "bottom"
 
 
 class ColorModel(BaseModel):
@@ -48,6 +56,7 @@ class ResolutionModel(BaseModel):
 class TransitionInstruction(BaseModel):
     type: TransitionType = TransitionType.NONE
     duration: float = Field(0.5, ge=0.0)
+    direction: TransitionDirection = TransitionDirection.LEFT
 
 
 class ChromaKeyInstruction(BaseModel):
@@ -71,10 +80,17 @@ class ClipInstruction(BaseModel):
     fit_mode: FitMode = FitMode.CONTAIN
     background_mode: BackgroundMode = BackgroundMode.BLUR
     background_color: ColorModel = Field(default_factory=lambda: ColorModel(r=16, g=16, b=16, a=1.0))
+
+    # НОВОЕ: переходы, которые применяются к самому клипу "в начале"
+    transitions_before: List[TransitionInstruction] = Field(default_factory=list)
+
+    # СТАРОЕ: переходы, которые применяются "после этого клипа" (к следующему)
     transitions_after: List[TransitionInstruction] = Field(default_factory=list)
+
     chroma_key: ChromaKeyInstruction = Field(default_factory=ChromaKeyInstruction)
     adjustments: AdjustmentInstruction = Field(default_factory=AdjustmentInstruction)
     playback_rate: float = Field(1.0, gt=0.0)
+    volume: float = Field(1.0, ge=0.0)
 
     @validator("end")
     def validate_end(cls, v, values):
@@ -83,6 +99,7 @@ class ClipInstruction(BaseModel):
             # ignore invalid end marker
             return None
         return v
+
 
 
 class AudioInstruction(BaseModel):
@@ -98,13 +115,19 @@ class TextAnimationInstruction(BaseModel):
     fade_in: float = Field(0.3, ge=0.0)
     fade_out: float = Field(0.3, ge=0.0)
     letter_spacing: Optional[float] = None
+    scale_from: float = Field(1.0, gt=0.0)
+    scale_to: float = Field(1.0, gt=0.0)
+    zoom_duration: Optional[float] = Field(None, ge=0.0)
 
 
 class TextInstruction(BaseModel):
     content: str
     start: float = Field(0.0, ge=0.0)
     end: Optional[float] = Field(None, gt=0.0)
-    position: Literal["center", "top", "bottom", "left", "right", "top_left", "top_right", "bottom_left", "bottom_right"] = "center"
+    position: Literal[
+        "center", "top", "bottom", "left", "right",
+        "top_left", "top_right", "bottom_left", "bottom_right"
+    ] = "center"
     font: str = "DejaVu-Sans"
     font_size: int = Field(48, gt=0)
     color: ColorModel = Field(default_factory=lambda: ColorModel(r=255, g=255, b=255, a=1.0))
@@ -114,6 +137,8 @@ class TextInstruction(BaseModel):
     glow: bool = False
     max_width: Optional[int] = None
     animation: TextAnimationInstruction = Field(default_factory=TextAnimationInstruction)
+    font_path: Optional[Path] = None
+
 
 
 class ImageAnimationInstruction(BaseModel):

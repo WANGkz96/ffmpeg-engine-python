@@ -8,6 +8,37 @@ from typing import List, Optional
 import moviepy.editor as mpe
 from moviepy.video.fx import all as vfx
 
+import moviepy.editor as mpe
+from moviepy.video.fx import all as vfx
+from moviepy.video.compositing import transitions as transfx
+
+from moviepy.config import change_settings
+
+change_settings({
+    "IMAGEMAGICK_BINARY": "magick",
+    "FFMPEG_BINARY": "ffmpeg"
+})
+
+if not hasattr(vfx, "gaussian_blur"):
+    import numpy as np
+    from PIL import Image, ImageFilter
+
+    def gaussian_blur(clip, sigma: float = 5.0):
+        """
+        Простой Gaussian blur поверх всего кадра.
+        Чтобы работало: clip.fx(vfx.gaussian_blur, sigma=...)
+        """
+        def _blur_frame(frame):
+            # frame: np.ndarray (H, W, 3)
+            img = Image.fromarray(frame)
+            img = img.filter(ImageFilter.GaussianBlur(radius=sigma))
+            return np.array(img)
+
+        return clip.fl_image(_blur_frame)
+
+    # подмешиваем в пространство эффектов MoviePy
+    vfx.gaussian_blur = gaussian_blur
+
 from .models import (
     AdjustmentInstruction,
     AudioInstruction,
@@ -20,6 +51,7 @@ from .models import (
     TextInstruction,
     TransitionInstruction,
     TransitionType,
+    TransitionDirection,
 )
 from .templates import resolve_template
 
@@ -34,6 +66,95 @@ class VideoEngine:
     def __init__(self, workspace: Path | str = "renders") -> None:
         self.workspace = Path(workspace)
         self.workspace.mkdir(parents=True, exist_ok=True)
+
+    def _apply_whip_pan_intro(
+            self,
+            clip: mpe.VideoClip,
+            transition: TransitionInstruction,
+    ) -> mpe.VideoClip:
+        """Whip pan в начале клипа: залетает с края + размытие."""
+        duration = min(transition.duration, clip.duration)
+        if duration <= 0:
+            return clip
+
+        side = transition.direction.value  # "left" / "right" / "top" / "bottom"
+
+        # Делим клип: первая часть с эффектом, остальное как есть
+        head = clip.subclip(0, duration)
+        rest = clip.subclip(duration) if clip.duration > duration else None
+
+        head = head.fx(transfx.slide_in, duration, side)
+        # Добавим размытие для ощущения "whip"
+        head = head.fx(vfx.gaussian_blur, sigma=8)
+
+        if rest:
+            return mpe.concatenate_videoclips([head, rest])
+        return head
+
+    def _apply_whip_pan_outro(
+            self,
+            clip: mpe.VideoClip,
+            transition: TransitionInstruction,
+    ) -> mpe.VideoClip:
+        """Whip pan в конце клипа: вылетает за край + размытие."""
+        duration = min(transition.duration, clip.duration)
+        if duration <= 0:
+            return clip
+
+        side = transition.direction.value
+        total = clip.duration
+
+        body = clip.subclip(0, total - duration) if total > duration else None
+        tail = clip.subclip(max(total - duration, 0), total)
+
+        tail = tail.fx(transfx.slide_out, duration, side)
+        tail = tail.fx(vfx.gaussian_blur, sigma=8)
+
+        if body:
+            return mpe.concatenate_videoclips([body, tail])
+        return tail
+
+    def _apply_whip_pan_between(
+            self,
+            prev_clip: mpe.VideoClip,
+            next_clip: mpe.VideoClip,
+            transition: TransitionInstruction,
+    ) -> tuple[mpe.VideoClip, mpe.VideoClip, float]:
+        """
+        Whip pan между двумя клипами.
+        Возвращает (модифицированный_prev, модифицированный_next, overlap_duration).
+        """
+        d = min(
+            transition.duration,
+            prev_clip.duration,
+            next_clip.duration,
+        )
+        if d <= 0:
+            return prev_clip, next_clip, 0.0
+
+        side = transition.direction.value
+
+        # Хвост предыдущего клипа: вылетает + blur
+        total_prev = prev_clip.duration
+        body_prev = prev_clip.subclip(0, total_prev - d) if total_prev > d else None
+        tail_prev = prev_clip.subclip(max(total_prev - d, 0), total_prev)
+        tail_prev = tail_prev.fx(transfx.slide_out, d, side)
+        tail_prev = tail_prev.fx(vfx.gaussian_blur, sigma=8)
+        new_prev = (
+            mpe.concatenate_videoclips([body_prev, tail_prev]) if body_prev else tail_prev
+        )
+
+        # Начало следующего клипа: влетает + blur
+        total_next = next_clip.duration
+        head_next = next_clip.subclip(0, d)
+        head_next = head_next.fx(transfx.slide_in, d, side)
+        head_next = head_next.fx(vfx.gaussian_blur, sigma=8)
+        rest_next = next_clip.subclip(d) if total_next > d else None
+        new_next = (
+            mpe.concatenate_videoclips([head_next, rest_next]) if rest_next else head_next
+        )
+
+        return new_prev, new_next, d
 
     def render(self, request: RenderRequest) -> RenderResult:
         template = resolve_template(request.output.template)
@@ -52,7 +173,7 @@ class VideoEngine:
             if not clips:
                 raise VideoEngineError("No clips provided in the request")
 
-            video = self._concatenate_with_transitions(clips, transitions, target_resolution)
+            video = self._concatenate_with_transitions(clips, request.clips, target_resolution)
             overlay = self._build_overlay(video.duration, request, target_resolution)
             final_clip = mpe.CompositeVideoClip([video, *overlay], size=target_resolution)
 
@@ -95,6 +216,10 @@ class VideoEngine:
         clip = self._apply_adjustments(clip, instruction.adjustments)
         if instruction.chroma_key.enabled:
             clip = self._apply_chroma_key(clip, instruction)
+
+        if instruction.volume != 1.0 and clip.audio is not None:
+            clip = clip.volumex(instruction.volume)
+
         clip = clip.set_fps(fps)
         return clip
 
@@ -151,20 +276,42 @@ class VideoEngine:
             return clip
 
     def _concatenate_with_transitions(
-        self,
-        clips: List[mpe.VideoClip],
-        transitions: List[TransitionInstruction],
-        target_resolution: tuple[int, int],
+            self,
+            clips: List[mpe.VideoClip],
+            clip_instructions: List[ClipInstruction],
+            target_resolution: tuple[int, int],
     ) -> mpe.VideoClip:
-        scheduled = []
+        scheduled: List[tuple[mpe.VideoClip, float]] = []
         cursor = 0.0
+
         for index, clip in enumerate(clips):
-            transition = transitions[index] if index < len(transitions) else None
+            instr = clip_instructions[index]
+
+            # ---------- ВХОДНЫЕ ПЕРЕХОДЫ (ДЛЯ САМОГО КЛИПА) ----------
+            intro: Optional[TransitionInstruction] = None
+            if instr.transitions_before:
+                intro = instr.transitions_before[0]
+
+            if intro:
+                if intro.type == TransitionType.FADE_BLACK:
+                    d = min(intro.duration, clip.duration)
+                    clip = clip.fadein(d)
+                elif intro.type == TransitionType.WHIP_PAN:
+                    clip = self._apply_whip_pan_intro(clip, intro)
+
+            # ---------- ПЕРЕХОД ИЗ ПРЕДЫДУЩЕГО КЛИПА В ЭТОТ ----------
+            transition: Optional[TransitionInstruction] = None
+            if index > 0:
+                prev_instr = clip_instructions[index - 1]
+                if prev_instr.transitions_after:
+                    transition = prev_instr.transitions_after[0]
+
             if transition and transition.type == TransitionType.CROSSFADE:
                 duration = min(transition.duration, clip.duration / 2)
                 clip = clip.crossfadein(duration)
-                start = max(cursor - duration, 0)
+                start = max(cursor - duration, 0.0)
                 cursor = start + clip.duration
+
             elif transition and transition.type == TransitionType.FADE_BLACK:
                 duration = min(transition.duration, clip.duration)
                 if scheduled:
@@ -173,15 +320,51 @@ class VideoEngine:
                 clip = clip.fadein(duration)
                 start = cursor
                 cursor += clip.duration
+
+            elif transition and transition.type == TransitionType.WHIP_PAN:
+                # Whip pan между предыдущим клипом и текущим
+                if scheduled:
+                    prev_clip, prev_start = scheduled[-1]
+                    new_prev, new_clip, overlap = self._apply_whip_pan_between(
+                        prev_clip, clip, transition
+                    )
+                    scheduled[-1] = (new_prev, prev_start)
+                    clip = new_clip
+                    start = max(cursor - overlap, 0.0)
+                    cursor = start + clip.duration
+                else:
+                    # На всякий случай fallback, если почему-то нет предыдущего
+                    start = cursor
+                    cursor += clip.duration
+
             else:
+                # Без перехода с предыдущим
                 start = cursor
                 cursor += clip.duration
+
             scheduled.append((clip, start))
+
+        # ---------- АУТРО ДЛЯ ПОСЛЕДНЕГО КЛИПА ----------
+        if scheduled and clip_instructions:
+            last_instr = clip_instructions[-1]
+            if last_instr.transitions_after:
+                outro = last_instr.transitions_after[0]
+                last_clip, last_start = scheduled[-1]
+
+                if outro.type == TransitionType.FADE_BLACK:
+                    d = min(outro.duration, last_clip.duration)
+                    last_clip = last_clip.fadeout(d)
+                    scheduled[-1] = (last_clip, last_start)
+
+                elif outro.type == TransitionType.WHIP_PAN:
+                    last_clip = self._apply_whip_pan_outro(last_clip, outro)
+                    scheduled[-1] = (last_clip, last_start)
 
         layered = [clip.set_start(start) for clip, start in scheduled]
         base = mpe.CompositeVideoClip(layered, size=target_resolution)
         base = base.set_duration(cursor)
         return base
+
 
     def _build_overlay(
         self, duration: float, request: RenderRequest, target_resolution: tuple[int, int]
@@ -201,11 +384,18 @@ class VideoEngine:
         end_time = instruction.end if instruction.end else duration
         if end_time <= instruction.start:
             return None
+
+        # выбираем, что передавать в параметр font
+        if getattr(instruction, "font_path", None):
+            font_arg = str(instruction.font_path)
+        else:
+            font_arg = instruction.font
+
         try:
             clip = mpe.TextClip(
                 instruction.content,
                 fontsize=instruction.font_size,
-                font=instruction.font,
+                font=font_arg,
                 color=self._color_to_hex(instruction.color),
                 stroke_color=self._color_to_hex(instruction.stroke_color) if instruction.stroke_color else None,
                 stroke_width=instruction.stroke_width,
@@ -216,12 +406,40 @@ class VideoEngine:
             logger.warning("Text rendering failed (%s); skipping", exc)
             return None
 
+        anim = instruction.animation
+
+        # --- ЗУМ ПРИ ПОЯВЛЕНИИ ---
+        # Делаем zoom от scale_from до scale_to в течение zoom_duration секунд (локальное время клипа t=0..)
+        if (getattr(anim, "scale_from", 1.0) != 1.0) or (getattr(anim, "scale_to", 1.0) != 1.0):
+            scale_from = getattr(anim, "scale_from", 1.0)
+            scale_to = getattr(anim, "scale_to", 1.0)
+
+            # Длительность зума: zoom_duration > fade_in > вся длина клипа
+            zoom_duration = (
+                anim.zoom_duration
+                if anim.zoom_duration is not None
+                else (anim.fade_in if anim.fade_in > 0 else (end_time - instruction.start))
+            )
+
+            if zoom_duration > 0:
+                def scale_func(t):
+                    # t — локальное время клипа, начиная с 0
+                    progress = min(max(t / zoom_duration, 0.0), 1.0)
+                    return scale_from + (scale_to - scale_from) * progress
+
+                clip = clip.resize(scale_func)
+            else:
+                # если по какой-то причине длительность 0 — просто ставим финальный масштаб
+                clip = clip.resize(scale_to)
+
+        if anim.fade_in and anim.fade_in > 0:
+            clip = clip.fadein(anim.fade_in)
+        if anim.fade_out and anim.fade_out > 0:
+            clip = clip.fadeout(anim.fade_out)
+
         clip = clip.set_start(instruction.start).set_end(end_time)
         clip = clip.set_position(self._resolve_position(instruction.position, target_resolution, clip.size))
-        if instruction.animation.fade_in:
-            clip = clip.fadein(instruction.animation.fade_in)
-        if instruction.animation.fade_out:
-            clip = clip.fadeout(instruction.animation.fade_out)
+
         return clip
 
     def _build_image_clip(self, instruction: ImageInstruction, duration: float, target_resolution: tuple[int, int]) -> Optional[mpe.VideoClip]:
@@ -299,8 +517,19 @@ class VideoEngine:
         if not filename.endswith(f".{extension}"):
             filename = f"{Path(filename).stem}.{extension}"
         output_path = output_dir / filename
-        codec = "libx264" if extension in {"mp4", "mov"} else None
-        audio_codec = "aac" if extension in {"mp4", "mov"} else None
+
+        # например, грубый флажок “использовать GPU”
+        use_gpu = True
+
+        if use_gpu and extension in {"mp4", "mov"}:
+            codec = "h264_nvenc"
+            audio_codec = "aac"
+            ffmpeg_params = ["-preset", "p4"]  # подбирается по вкусу
+        else:
+            codec = "libx264" if extension in {"mp4", "mov"} else None
+            audio_codec = "aac" if extension in {"mp4", "mov"} else None
+            ffmpeg_params = []
+
         clip.write_videofile(
             str(output_path),
             fps=request.output.fps,
@@ -308,8 +537,10 @@ class VideoEngine:
             audio_codec=audio_codec,
             bitrate=request.output.bitrate,
             threads=4,
+            ffmpeg_params=ffmpeg_params,
         )
         return output_path
+
 
     @staticmethod
     def _resolve_position(position: str, target_resolution: tuple[int, int], clip_size: tuple[int, int]):

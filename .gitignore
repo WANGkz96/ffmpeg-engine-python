@@ -1,0 +1,6 @@
+renders
+media
+examples
+.idea
+__pycache__
+ffmpeg_engine/__pycache__/
