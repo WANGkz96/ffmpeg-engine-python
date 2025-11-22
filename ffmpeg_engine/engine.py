@@ -3,41 +3,106 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import List, Optional
+from typing import List, Optional, Tuple
+
+# Monkey patch Image.ANTIALIAS for Pillow 10+
+from PIL import Image
+if not hasattr(Image, "ANTIALIAS"):
+    if hasattr(Image, "Resampling"):
+        Image.ANTIALIAS = Image.Resampling.LANCZOS
+    else:
+        Image.ANTIALIAS = Image.LANCZOS
 
 import moviepy.editor as mpe
 from moviepy.video.fx import all as vfx
-
-import moviepy.editor as mpe
-from moviepy.video.fx import all as vfx
-from moviepy.video.compositing import transitions as transfx
-
 from moviepy.config import change_settings
+import numpy as np
+from PIL import ImageFilter
 
 change_settings({
     "IMAGEMAGICK_BINARY": "magick",
     "FFMPEG_BINARY": "ffmpeg"
 })
 
+# Polyfill for gaussian_blur if missing in moviepy
 if not hasattr(vfx, "gaussian_blur"):
-    import numpy as np
-    from PIL import Image, ImageFilter
-
-    def gaussian_blur(clip, sigma: float = 5.0):
-        """
-        Простой Gaussian blur поверх всего кадра.
-        Чтобы работало: clip.fx(vfx.gaussian_blur, sigma=...)
-        """
-        def _blur_frame(frame):
-            # frame: np.ndarray (H, W, 3)
+    def gaussian_blur(clip, sigma=5):
+        def filter_frame(get_frame, t):
+            frame = get_frame(t)
             img = Image.fromarray(frame)
             img = img.filter(ImageFilter.GaussianBlur(radius=sigma))
             return np.array(img)
-
-        return clip.fl_image(_blur_frame)
-
-    # подмешиваем в пространство эффектов MoviePy
+        return clip.fl(filter_frame)
     vfx.gaussian_blur = gaussian_blur
+
+logger = logging.getLogger(__name__)
+
+# --- Monkey patch or helper functions ---
+
+def dynamic_motion_blur(clip, strength_func, direction: str = "horizontal"):
+    """
+    Motion blur с динамической силой (зависит от времени).
+    strength_func(t) -> float (размер ядра, px)
+    direction: "horizontal" | "vertical"
+    """
+    def filter_frame(get_frame, t):
+        frame = get_frame(t)
+        k_size = int(strength_func(t))
+        
+        # Debug print to verify blur is working
+        # logger.info(f"Blurring with k_size={k_size} at t={t}")
+        
+        if k_size < 2:
+            return frame
+            
+        # Force odd kernel size for symmetry
+        if k_size % 2 == 0:
+            k_size += 1
+            
+        radius = k_size // 2
+        
+        # Convert to float to avoid overflow during accumulation
+        img_float = frame.astype(float)
+        
+        if direction == "horizontal":
+            axis = 1
+            pad_width = ((0, 0), (radius, radius), (0, 0))
+        else:
+            axis = 0
+            pad_width = ((radius, radius), (0, 0), (0, 0))
+            
+        try:
+            # Pad with edge replication
+            padded = np.pad(img_float, pad_width, mode='edge')
+            
+            # Cumsum along axis
+            cumsum = np.cumsum(padded, axis=axis)
+            
+            # Pad cumsum with one zero slice at the beginning of the axis
+            if axis == 1:
+                zeros = np.zeros((cumsum.shape[0], 1, cumsum.shape[2]))
+                cumsum_padded = np.hstack((zeros, cumsum))
+            else:
+                zeros = np.zeros((1, cumsum.shape[1], cumsum.shape[2]))
+                cumsum_padded = np.vstack((zeros, cumsum))
+                
+            # Compute moving sum: sum[i] = cumsum[i+k] - cumsum[i]
+            if axis == 1:
+                upper = cumsum_padded[:, k_size : k_size + img_float.shape[1], :]
+                lower = cumsum_padded[:, 0 : img_float.shape[1], :]
+            else:
+                upper = cumsum_padded[k_size : k_size + img_float.shape[0], :, :]
+                lower = cumsum_padded[0 : img_float.shape[0], :, :]
+                
+            result = (upper - lower) / k_size
+            
+            return np.clip(result, 0, 255).astype(np.uint8)
+            
+        except Exception as e:
+            logger.warning(f"Motion blur failed: {e}")
+            return frame
+    
+    return clip.fl(filter_frame)
 
 from .models import (
     AdjustmentInstruction,
@@ -55,8 +120,6 @@ from .models import (
 )
 from .templates import resolve_template
 
-logger = logging.getLogger(__name__)
-
 
 class VideoEngineError(Exception):
     """Raised when the rendering pipeline fails."""
@@ -67,94 +130,188 @@ class VideoEngine:
         self.workspace = Path(workspace)
         self.workspace.mkdir(parents=True, exist_ok=True)
 
+    # --- ВСПОМОГАТЕЛЬНЫЕ МЕТОДЫ ДЛЯ WHIP PAN ---
+
+    def _get_slide_vector(self, direction: TransitionDirection, width: int, height: int) -> Tuple[int, int]:
+        """Возвращает вектор смещения (dx, dy) для уходящего клипа."""
+        if direction == TransitionDirection.LEFT:
+            return (-width, 0)
+        elif direction == TransitionDirection.RIGHT:
+            return (width, 0)
+        elif direction == TransitionDirection.TOP:
+            return (0, -height)
+        elif direction == TransitionDirection.BOTTOM:
+            return (0, height)
+        return (-width, 0)
+
     def _apply_whip_pan_intro(
             self,
             clip: mpe.VideoClip,
             transition: TransitionInstruction,
+            resolution: Tuple[int, int]
     ) -> mpe.VideoClip:
-        """Whip pan в начале клипа: залетает с края + размытие."""
+        """Whip pan в начале: влетает в кадр."""
         duration = min(transition.duration, clip.duration)
         if duration <= 0:
             return clip
 
-        side = transition.direction.value  # "left" / "right" / "top" / "bottom"
+        w, h = resolution
+        dx, dy = self._get_slide_vector(transition.direction, w, h)
 
-        # Делим клип: первая часть с эффектом, остальное как есть
+        # Делим клип
         head = clip.subclip(0, duration)
         rest = clip.subclip(duration) if clip.duration > duration else None
 
-        head = head.fx(transfx.slide_in, duration, side)
-        # Добавим размытие для ощущения "whip"
-        head = head.fx(vfx.gaussian_blur, sigma=8)
+        # Анимация влета: от (-dx, -dy) к (0, 0)
+        # Deceleration: замедляемся при входе
+        def intro_pos(t):
+            progress = t / duration
+            # ease-out cubic: 1 - (1-p)^3
+            p_eased = 1 - (1 - progress) ** 3
+            return (
+                int(-dx * (1 - p_eased)),
+                int(-dy * (1 - p_eased))
+            )
 
+        # Динамический Motion Blur: от сильного к 0
+        max_blur = 300 
+        blur_direction = "horizontal" if abs(dx) > abs(dy) else "vertical"
+        
+        def blur_func(t):
+            progress = t / duration
+            factor = (1 - progress) ** 2
+            return max_blur * factor
+
+        head = dynamic_motion_blur(head, blur_func, direction=blur_direction).set_position(intro_pos)
+
+        clips = [head]
         if rest:
-            return mpe.concatenate_videoclips([head, rest])
-        return head
+            clips.append(rest.set_start(duration))
+        
+        return mpe.CompositeVideoClip(clips, size=resolution).set_duration(clip.duration)
 
     def _apply_whip_pan_outro(
             self,
             clip: mpe.VideoClip,
             transition: TransitionInstruction,
+            resolution: Tuple[int, int]
     ) -> mpe.VideoClip:
-        """Whip pan в конце клипа: вылетает за край + размытие."""
+        """Whip pan в конце: улетает из кадра."""
         duration = min(transition.duration, clip.duration)
         if duration <= 0:
             return clip
 
-        side = transition.direction.value
+        w, h = resolution
+        dx, dy = self._get_slide_vector(transition.direction, w, h)
         total = clip.duration
 
         body = clip.subclip(0, total - duration) if total > duration else None
         tail = clip.subclip(max(total - duration, 0), total)
 
-        tail = tail.fx(transfx.slide_out, duration, side)
-        tail = tail.fx(vfx.gaussian_blur, sigma=8)
+        # Анимация вылета: от (0,0) к (dx, dy)
+        # Acceleration: разгоняемся
+        def outro_pos(t):
+            progress = t / duration
+            # ease-in cubic: p^3
+            p_eased = progress ** 3
+            return (int(dx * p_eased), int(dy * p_eased))
 
+        # Динамический Motion Blur: от 0 к сильному
+        max_blur = 300
+        blur_direction = "horizontal" if abs(dx) > abs(dy) else "vertical"
+        
+        def blur_func(t):
+            progress = t / duration
+            factor = progress ** 2
+            return max_blur * factor
+
+        tail = dynamic_motion_blur(tail, blur_func, direction=blur_direction).set_position(outro_pos)
+
+        clips = []
         if body:
-            return mpe.concatenate_videoclips([body, tail])
-        return tail
+            clips.append(body)
+            tail = tail.set_start(body.duration)
+        
+        clips.append(tail)
+        return mpe.CompositeVideoClip(clips, size=resolution).set_duration(clip.duration)
 
     def _apply_whip_pan_between(
             self,
             prev_clip: mpe.VideoClip,
             next_clip: mpe.VideoClip,
             transition: TransitionInstruction,
+            resolution: Tuple[int, int]
     ) -> tuple[mpe.VideoClip, mpe.VideoClip, float]:
         """
         Whip pan между двумя клипами.
         Возвращает (модифицированный_prev, модифицированный_next, overlap_duration).
         """
-        d = min(
-            transition.duration,
-            prev_clip.duration,
-            next_clip.duration,
-        )
+        d = min(transition.duration, prev_clip.duration, next_clip.duration)
         if d <= 0:
             return prev_clip, next_clip, 0.0
 
-        side = transition.direction.value
+        w, h = resolution
+        dx, dy = self._get_slide_vector(transition.direction, w, h)
+        max_blur = 300
+        blur_direction = "horizontal" if abs(dx) > abs(dy) else "vertical"
 
-        # Хвост предыдущего клипа: вылетает + blur
+        # --- PREV CLIP (Уходит) ---
         total_prev = prev_clip.duration
         body_prev = prev_clip.subclip(0, total_prev - d) if total_prev > d else None
         tail_prev = prev_clip.subclip(max(total_prev - d, 0), total_prev)
-        tail_prev = tail_prev.fx(transfx.slide_out, d, side)
-        tail_prev = tail_prev.fx(vfx.gaussian_blur, sigma=8)
-        new_prev = (
-            mpe.concatenate_videoclips([body_prev, tail_prev]) if body_prev else tail_prev
-        )
 
-        # Начало следующего клипа: влетает + blur
+        # Движение от (0,0) к (dx, dy) (Acceleration)
+        def pos_out(t):
+            progress = min(t / d, 1.0)
+            p_eased = progress ** 3
+            return (int(dx * p_eased), int(dy * p_eased))
+
+        # Блюр нарастает
+        def blur_out(t):
+            progress = min(t / d, 1.0)
+            return max_blur * (progress ** 2)
+
+        tail_prev = dynamic_motion_blur(tail_prev, blur_out, direction=blur_direction).set_position(pos_out)
+
+        prev_parts = []
+        if body_prev:
+            prev_parts.append(body_prev)
+            tail_prev = tail_prev.set_start(body_prev.duration)
+        prev_parts.append(tail_prev)
+        
+        new_prev = mpe.CompositeVideoClip(prev_parts, size=resolution).set_duration(prev_clip.duration)
+
+        # --- NEXT CLIP (Приходит) ---
         total_next = next_clip.duration
         head_next = next_clip.subclip(0, d)
-        head_next = head_next.fx(transfx.slide_in, d, side)
-        head_next = head_next.fx(vfx.gaussian_blur, sigma=8)
         rest_next = next_clip.subclip(d) if total_next > d else None
-        new_next = (
-            mpe.concatenate_videoclips([head_next, rest_next]) if rest_next else head_next
-        )
+
+        # Движение от (-dx, -dy) к (0,0) (Deceleration)
+        def pos_in(t):
+            progress = min(t / d, 1.0)
+            p_eased = 1 - (1 - progress) ** 3
+            start_x, start_y = -dx, -dy
+            return (
+                int(start_x * (1 - p_eased)),
+                int(start_y * (1 - p_eased))
+            )
+
+        # Блюр убывает
+        def blur_in(t):
+            progress = min(t / d, 1.0)
+            return max_blur * ((1 - progress) ** 2)
+
+        head_next = dynamic_motion_blur(head_next, blur_in, direction=blur_direction).set_position(pos_in)
+
+        next_parts = [head_next]
+        if rest_next:
+            next_parts.append(rest_next.set_start(d))
+        
+        new_next = mpe.CompositeVideoClip(next_parts, size=resolution).set_duration(next_clip.duration)
 
         return new_prev, new_next, d
+
+    # --- MAIN RENDER LOGIC ---
 
     def render(self, request: RenderRequest) -> RenderResult:
         template = resolve_template(request.output.template)
@@ -163,36 +320,43 @@ class VideoEngine:
 
         clips = []
         final_clip = None
-        transitions: List[TransitionInstruction] = []
         try:
+            # Подготовка всех клипов (ресайз, эффекты, хромакей)
             for clip_instruction in request.clips:
                 clip = self._prepare_clip(clip_instruction, target_resolution, request.output.fps)
                 clips.append(clip)
-                transitions.extend(clip_instruction.transitions_after or [])
 
             if not clips:
                 raise VideoEngineError("No clips provided in the request")
 
+            # Сборка видео с переходами
             video = self._concatenate_with_transitions(clips, request.clips, target_resolution)
+
+            # Наложение текста и картинок
             overlay = self._build_overlay(video.duration, request, target_resolution)
+
+            # Финальный композит
             final_clip = mpe.CompositeVideoClip([video, *overlay], size=target_resolution)
 
+            # Аудио
             audio = self._build_audio(request, final_clip.duration)
             if audio is not None:
                 final_clip = final_clip.set_audio(audio)
 
             output_path = self._export(final_clip, request)
-        except Exception as exc:  # pragma: no cover - best effort error shield
+        except Exception as exc:
             logger.exception("Rendering failed: %s", exc)
             return RenderResult(status="error", duration=0.0, output=Path(""), message=str(exc))
         finally:
             for clip in clips:
-                clip.close()
+                # Аккуратно закрываем ресурсы
+                try:
+                    if clip: clip.close()
+                except: pass
             if final_clip:
                 try:
                     final_clip.close()
-                except Exception:  # pragma: no cover
-                    pass
+                except: pass
 
         return RenderResult(status="ok", duration=final_clip.duration, output=output_path)
 
@@ -204,6 +368,7 @@ class VideoEngine:
             end = min(end, clip.duration)
         if end and end <= start:
             end = None
+
         if end:
             clip = clip.subclip(start, end)
         else:
@@ -235,17 +400,20 @@ class VideoEngine:
         # contain
         scale = min(target_w / clip_w, target_h / clip_h)
         resized = clip.resize(scale)
+
+        # Для contain нам нужно создать подложку (CompositeVideoClip), чтобы заполнить пустоты
         if instruction.background_mode == BackgroundMode.COLOR:
             background = mpe.ColorClip(size=target_resolution, color=instruction.background_color.as_tuple(), duration=resized.duration)
         else:
-            background = clip.resize(max(target_w / clip_w, target_h / clip_h)).fx(
-                vfx.gaussian_blur, sigma=max(instruction.background_color.a * 25, 5)
-            )
-            background = background.crop(
-                width=target_w, height=target_h, x_center=background.w / 2, y_center=background.h / 2
-            )
+            # Blur background
+            # Берем клип, ресайзим до cover, блюрим
+            bg_scale = max(target_w / clip_w, target_h / clip_h)
+            background = clip.resize(bg_scale)
+            background = background.crop(width=target_w, height=target_h, x_center=background.w/2, y_center=background.h/2)
+            background = background.fx(vfx.gaussian_blur, sigma=max(instruction.background_color.a * 25, 5))
             background = background.set_duration(resized.duration)
-        positioned = resized.set_position(("center", "center"))
+
+        positioned = resized.set_position("center")
         composite = mpe.CompositeVideoClip([background, positioned], size=target_resolution)
         return composite.set_duration(resized.duration)
 
@@ -257,13 +425,13 @@ class VideoEngine:
         if adjustments.saturation != 0:
             try:
                 clip = clip.fx(vfx.saturation, 1 + adjustments.saturation)
-            except Exception:  # pragma: no cover - depends on moviepy build
-                logger.warning("Saturation adjustment failed; skipping")
+            except Exception:
+                pass
         if adjustments.hue != 0:
             try:
                 clip = clip.fx(vfx.hue, adjustments.hue)
-            except Exception:  # pragma: no cover
-                logger.warning("Hue adjustment failed; skipping")
+            except Exception:
+                pass
         return clip
 
     def _apply_chroma_key(self, clip: mpe.VideoClip, instruction: ClipInstruction) -> mpe.VideoClip:
@@ -271,8 +439,7 @@ class VideoEngine:
         try:
             mask = clip.fx(vfx.mask_color, color=key.color.as_tuple(), thr=key.threshold, s=key.softness)
             return clip.set_mask(mask.mask)
-        except Exception:  # pragma: no cover
-            logger.warning("Chroma key failed; returning original clip")
+        except Exception:
             return clip
 
     def _concatenate_with_transitions(
@@ -281,13 +448,16 @@ class VideoEngine:
             clip_instructions: List[ClipInstruction],
             target_resolution: tuple[int, int],
     ) -> mpe.VideoClip:
+        """
+        Собирает клипы в один таймлайн, обрабатывая наложения (transitions).
+        """
         scheduled: List[tuple[mpe.VideoClip, float]] = []
         cursor = 0.0
 
         for index, clip in enumerate(clips):
             instr = clip_instructions[index]
 
-            # ---------- ВХОДНЫЕ ПЕРЕХОДЫ (ДЛЯ САМОГО КЛИПА) ----------
+            # 1. Intro Transitions (применяются к самому клипу)
             intro: Optional[TransitionInstruction] = None
             if instr.transitions_before:
                 intro = instr.transitions_before[0]
@@ -297,54 +467,64 @@ class VideoEngine:
                     d = min(intro.duration, clip.duration)
                     clip = clip.fadein(d)
                 elif intro.type == TransitionType.WHIP_PAN:
-                    clip = self._apply_whip_pan_intro(clip, intro)
+                    clip = self._apply_whip_pan_intro(clip, intro, target_resolution)
 
-            # ---------- ПЕРЕХОД ИЗ ПРЕДЫДУЩЕГО КЛИПА В ЭТОТ ----------
+            # 2. Transition from Previous Clip (переход между клипами)
             transition: Optional[TransitionInstruction] = None
             if index > 0:
                 prev_instr = clip_instructions[index - 1]
                 if prev_instr.transitions_after:
                     transition = prev_instr.transitions_after[0]
 
+            # Обработка переходов
             if transition and transition.type == TransitionType.CROSSFADE:
                 duration = min(transition.duration, clip.duration / 2)
                 clip = clip.crossfadein(duration)
+                # Сдвигаем курсор назад, чтобы было наложение
                 start = max(cursor - duration, 0.0)
                 cursor = start + clip.duration
 
             elif transition and transition.type == TransitionType.FADE_BLACK:
                 duration = min(transition.duration, clip.duration)
+                # Предыдущий уходит в черное
                 if scheduled:
                     prev_clip, prev_start = scheduled[-1]
                     scheduled[-1] = (prev_clip.fadeout(duration), prev_start)
+                # Текущий выходит из черного
                 clip = clip.fadein(duration)
+                # Здесь нет наложения по времени (или минимальное), они стыкуются
                 start = cursor
                 cursor += clip.duration
 
             elif transition and transition.type == TransitionType.WHIP_PAN:
-                # Whip pan между предыдущим клипом и текущим
                 if scheduled:
                     prev_clip, prev_start = scheduled[-1]
+                    # Вызываем специальную логику, которая вернет обновленные клипы и длительность нахлеста
                     new_prev, new_clip, overlap = self._apply_whip_pan_between(
-                        prev_clip, clip, transition
+                        prev_clip, clip, transition, target_resolution
                     )
+
+                    # Обновляем предыдущий клип в расписании
                     scheduled[-1] = (new_prev, prev_start)
+
+                    # Текущий клип теперь new_clip
                     clip = new_clip
+
+                    # Рассчитываем старт с учетом нахлеста
                     start = max(cursor - overlap, 0.0)
                     cursor = start + clip.duration
                 else:
-                    # На всякий случай fallback, если почему-то нет предыдущего
+                    # Если это первый клип (странно, но бывает), просто ставим
                     start = cursor
                     cursor += clip.duration
-
             else:
-                # Без перехода с предыдущим
+                # Нет перехода
                 start = cursor
                 cursor += clip.duration
 
             scheduled.append((clip, start))
 
-        # ---------- АУТРО ДЛЯ ПОСЛЕДНЕГО КЛИПА ----------
+        # 3. Outro Transitions (для самого последнего клипа)
         if scheduled and clip_instructions:
             last_instr = clip_instructions[-1]
             if last_instr.transitions_after:
@@ -357,17 +537,20 @@ class VideoEngine:
                     scheduled[-1] = (last_clip, last_start)
 
                 elif outro.type == TransitionType.WHIP_PAN:
-                    last_clip = self._apply_whip_pan_outro(last_clip, outro)
+                    last_clip = self._apply_whip_pan_outro(last_clip, outro, target_resolution)
                     scheduled[-1] = (last_clip, last_start)
 
-        layered = [clip.set_start(start) for clip, start in scheduled]
+        # Собираем финальный композит
+        # set_start устанавливает время начала клипа на глобальном таймлайне
+        layered = [c.set_start(s) for c, s in scheduled]
+
+        # size=target_resolution важен, чтобы canvas не скакал
         base = mpe.CompositeVideoClip(layered, size=target_resolution)
         base = base.set_duration(cursor)
         return base
 
-
     def _build_overlay(
-        self, duration: float, request: RenderRequest, target_resolution: tuple[int, int]
+            self, duration: float, request: RenderRequest, target_resolution: tuple[int, int]
     ) -> List[mpe.VideoClip]:
         overlays: List[mpe.VideoClip] = []
         for text in request.texts:
@@ -385,11 +568,7 @@ class VideoEngine:
         if end_time <= instruction.start:
             return None
 
-        # выбираем, что передавать в параметр font
-        if getattr(instruction, "font_path", None):
-            font_arg = str(instruction.font_path)
-        else:
-            font_arg = instruction.font
+        font_arg = str(instruction.font_path) if getattr(instruction, "font_path", None) else instruction.font
 
         try:
             clip = mpe.TextClip(
@@ -402,34 +581,24 @@ class VideoEngine:
                 method="caption" if instruction.max_width else "label",
                 size=(instruction.max_width, None) if instruction.max_width else None,
             )
-        except Exception as exc:  # pragma: no cover - requires ImageMagick
+        except Exception as exc:
             logger.warning("Text rendering failed (%s); skipping", exc)
             return None
 
         anim = instruction.animation
 
-        # --- ЗУМ ПРИ ПОЯВЛЕНИИ ---
-        # Делаем zoom от scale_from до scale_to в течение zoom_duration секунд (локальное время клипа t=0..)
+        # Scale animation
         if (getattr(anim, "scale_from", 1.0) != 1.0) or (getattr(anim, "scale_to", 1.0) != 1.0):
             scale_from = getattr(anim, "scale_from", 1.0)
             scale_to = getattr(anim, "scale_to", 1.0)
 
-            # Длительность зума: zoom_duration > fade_in > вся длина клипа
-            zoom_duration = (
-                anim.zoom_duration
-                if anim.zoom_duration is not None
-                else (anim.fade_in if anim.fade_in > 0 else (end_time - instruction.start))
-            )
-
-            if zoom_duration > 0:
+            zoom_dur = anim.zoom_duration if anim.zoom_duration else (end_time - instruction.start)
+            if zoom_dur > 0:
                 def scale_func(t):
-                    # t — локальное время клипа, начиная с 0
-                    progress = min(max(t / zoom_duration, 0.0), 1.0)
+                    progress = min(max(t / zoom_dur, 0.0), 1.0)
                     return scale_from + (scale_to - scale_from) * progress
-
                 clip = clip.resize(scale_func)
             else:
-                # если по какой-то причине длительность 0 — просто ставим финальный масштаб
                 clip = clip.resize(scale_to)
 
         if anim.fade_in and anim.fade_in > 0:
@@ -448,8 +617,7 @@ class VideoEngine:
             return None
         try:
             clip = mpe.ImageClip(str(instruction.source))
-        except OSError as exc:  # pragma: no cover - file missing etc.
-            logger.warning("Unable to load image %s: %s", instruction.source, exc)
+        except OSError:
             return None
 
         if instruction.size:
@@ -466,21 +634,17 @@ class VideoEngine:
         return clip
 
     def _apply_keyframes(self, clip: mpe.VideoClip, keyframes: List[dict]):
-        """Return a make_frame function with rudimentary keyframe animation."""
-
-        def make_frame(t):  # pragma: no cover - complex animation path
+        def make_frame(t):
             frame = clip.get_frame(t)
             for keyframe in keyframes:
                 start = keyframe.get("time", 0.0)
                 duration = keyframe.get("duration", 0.0)
-                if not (start <= t <= start + duration):
-                    continue
-                scale = keyframe.get("scale")
-                if scale:
-                    frame_clip = mpe.ImageClip(frame).resize(scale)
-                    frame = frame_clip.get_frame(0)
+                if start <= t <= start + duration:
+                    scale = keyframe.get("scale")
+                    if scale:
+                        frame_clip = mpe.ImageClip(frame).resize(scale)
+                        frame = frame_clip.get_frame(0)
             return frame
-
         return make_frame
 
     def _build_audio(self, request: RenderRequest, duration: float) -> Optional[mpe.AudioClip]:
@@ -488,8 +652,7 @@ class VideoEngine:
         for instruction in request.audio:
             try:
                 clip = mpe.AudioFileClip(str(instruction.source))
-            except OSError as exc:  # pragma: no cover
-                logger.warning("Failed to load audio %s: %s", instruction.source, exc)
+            except OSError:
                 continue
             start = max(instruction.start, 0.0)
             end = instruction.end if instruction.end else clip.duration
@@ -518,13 +681,11 @@ class VideoEngine:
             filename = f"{Path(filename).stem}.{extension}"
         output_path = output_dir / filename
 
-        # например, грубый флажок “использовать GPU”
-        use_gpu = True
-
+        use_gpu = False  # Set True if NVENC available
         if use_gpu and extension in {"mp4", "mov"}:
             codec = "h264_nvenc"
             audio_codec = "aac"
-            ffmpeg_params = ["-preset", "p4"]  # подбирается по вкусу
+            ffmpeg_params = ["-preset", "p4"]
         else:
             codec = "libx264" if extension in {"mp4", "mov"} else None
             audio_codec = "aac" if extension in {"mp4", "mov"} else None
@@ -541,22 +702,20 @@ class VideoEngine:
         )
         return output_path
 
-
     @staticmethod
     def _resolve_position(position: str, target_resolution: tuple[int, int], clip_size: tuple[int, int]):
+        w, h = target_resolution
+        cw, ch = clip_size
         mapping = {
             "center": ("center", "center"),
-            "top": ("center", 0.05 * target_resolution[1]),
-            "bottom": ("center", target_resolution[1] - clip_size[1] - 0.05 * target_resolution[1]),
-            "left": (0.05 * target_resolution[0], "center"),
-            "right": (target_resolution[0] - clip_size[0] - 0.05 * target_resolution[0], "center"),
-            "top_left": (0.05 * target_resolution[0], 0.05 * target_resolution[1]),
-            "top_right": (target_resolution[0] - clip_size[0] - 0.05 * target_resolution[0], 0.05 * target_resolution[1]),
-            "bottom_left": (0.05 * target_resolution[0], target_resolution[1] - clip_size[1] - 0.05 * target_resolution[1]),
-            "bottom_right": (
-                target_resolution[0] - clip_size[0] - 0.05 * target_resolution[0],
-                target_resolution[1] - clip_size[1] - 0.05 * target_resolution[1],
-            ),
+            "top": ("center", 0.05 * h),
+            "bottom": ("center", h - ch - 0.05 * h),
+            "left": (0.05 * w, "center"),
+            "right": (w - cw - 0.05 * w, "center"),
+            "top_left": (0.05 * w, 0.05 * h),
+            "top_right": (w - cw - 0.05 * w, 0.05 * h),
+            "bottom_left": (0.05 * w, h - ch - 0.05 * h),
+            "bottom_right": (w - cw - 0.05 * w, h - ch - 0.05 * h),
         }
         return mapping.get(position, ("center", "center"))
 
@@ -565,4 +724,3 @@ class VideoEngine:
         if not color:
             return "white"
         return "#%02x%02x%02x" % (color.r, color.g, color.b)
-
