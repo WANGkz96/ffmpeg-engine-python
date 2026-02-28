@@ -1,0 +1,47 @@
+{
+    "clips": [
+        {
+            "source": "media/14705086_1080_1920_30fps.mp4",
+            "start": 0,
+            "end": 3,
+            "transitions_before": [
+                {
+                    "type": "whip_pan",
+                    "duration": 1,
+                    "direction": "top",
+                    "blur_strength": 200
+                }
+            ],
+            "transitions_after": [
+                {
+                    "type": "whip_pan",
+                    "duration": 1,
+                    "direction": "top",
+                    "blur_strength": 200
+                }
+            ]
+        },
+        {
+            "source": "media/5512609-hd_1080_1920_25fps.mp4",
+            "start": 0,
+            "end": 3,
+            "transitions_after": [
+                {
+                    "type": "whip_pan",
+                    "duration": 1,
+                    "direction": "top",
+                    "blur_strength": 200
+                }
+            ]
+        }
+    ],
+    "output": {
+        "filename": "whip_test.mp4",
+        "format": "mp4",
+        "fps": 30,
+        "resolution": {
+            "width": 1080,
+            "height": 1920
+        }
+    }
+}

@@ -49,9 +49,6 @@ def dynamic_motion_blur(clip, strength_func, direction: str = "horizontal"):
         frame = get_frame(t)
         k_size = int(strength_func(t))
         
-        # Debug print to verify blur is working
-        # logger.info(f"Blurring with k_size={k_size} at t={t}")
-        
         if k_size < 2:
             return frame
             
@@ -104,6 +101,18 @@ def dynamic_motion_blur(clip, strength_func, direction: str = "horizontal"):
     
     return clip.fl(filter_frame)
 
+def dynamic_brightness(clip, factor_func):
+    """
+    Changes the brightness of the clip dynamically.
+    factor_func(t) -> float (multiplier, e.g. 1.0 = original, 1.5 = 50% brighter)
+    """
+    def filter_frame(get_frame, t):
+        frame = get_frame(t)
+        factor = factor_func(t)
+        # Multiply and clip. Ensure float calculation.
+        return np.clip(frame.astype(float) * factor, 0, 255).astype(np.uint8)
+    return clip.fl(filter_frame)
+
 from .models import (
     AdjustmentInstruction,
     AudioInstruction,
@@ -150,7 +159,7 @@ class VideoEngine:
             transition: TransitionInstruction,
             resolution: Tuple[int, int]
     ) -> mpe.VideoClip:
-        """Whip pan в начале: влетает в кадр."""
+        """Whip pan в начале: влетает в кадр (с черного фона)."""
         duration = min(transition.duration, clip.duration)
         if duration <= 0:
             return clip
@@ -162,29 +171,57 @@ class VideoEngine:
         head = clip.subclip(0, duration)
         rest = clip.subclip(duration) if clip.duration > duration else None
 
-        # Анимация влета: от (-dx, -dy) к (0, 0)
-        # Deceleration: замедляемся при входе
-        def intro_pos(t):
-            progress = t / duration
-            # ease-out cubic: 1 - (1-p)^3
-            p_eased = 1 - (1 - progress) ** 3
-            return (
-                int(-dx * (1 - p_eased)),
-                int(-dy * (1 - p_eased))
-            )
+        # Создаем "черный клип" как предыдущий
+        prev_clip = mpe.ColorClip(size=resolution, color=(0,0,0), duration=duration)
 
-        # Динамический Motion Blur: от сильного к 0
-        max_blur = 300 
-        blur_direction = "horizontal" if abs(dx) > abs(dy) else "vertical"
+        # --- GLOBAL COMPOSITE LOGIC (Similar to _apply_whip_pan_between) ---
+        def get_progress(t):
+            return min(max(t / duration, 0.0), 1.0)
+
+        # Используем только вторую половину ease-in-out (deceleration)
+        # Но для простоты и единообразия используем ту же логику движения,
+        # как если бы мы были во второй половине перехода "между" клипами.
+        # То есть мы "прилетаем" из (-dx, -dy) в (0,0).
         
+        def ease_out_cubic(p):
+             return 1 - pow(1 - p, 3)
+
+        # Движение
+        def pos_prev(t):
+            # Черный фон улетает так же, как улетал бы предыдущий клип
+            # Но здесь мы моделируем только фазу "прилета" (deceleration)
+            # Если мы хотим полную симметрию с "between", то intro - это как бы вторая половина перехода.
+            # Но проще сделать просто ease_out для влета.
+            p = get_progress(t)
+            eased = ease_out_cubic(p)
+            # prev улетает от (0,0) к (dx, dy)
+            return (int(dx * eased), int(dy * eased))
+
+        def pos_head(t):
+            p = get_progress(t)
+            eased = ease_out_cubic(p)
+            # head летит от (-dx, -dy) к (0,0)
+            return (int(-dx + dx * eased), int(-dy + dy * eased))
+
+        prev_clip = prev_clip.set_position(pos_prev)
+        head = head.set_position(pos_head)
+
+        transition_clip = mpe.CompositeVideoClip([prev_clip, head], size=resolution).set_duration(duration)
+
+        max_blur = transition.blur_strength
+        blur_direction = "horizontal" if abs(dx) > abs(dy) else "vertical"
+
         def blur_func(t):
-            progress = t / duration
-            factor = (1 - progress) ** 2
-            return max_blur * factor
+            p = get_progress(t)
+            # Blur убывает от максимума к 0
+            # Derivative of ease_out_cubic (1 - (1-p)^3) is 3(1-p)^2
+            # Normalized: (1-p)^2
+            velocity_factor = (1 - p) ** 2
+            return max_blur * velocity_factor
 
-        head = dynamic_motion_blur(head, blur_func, direction=blur_direction).set_position(intro_pos)
+        transition_blurred = dynamic_motion_blur(transition_clip, blur_func, direction=blur_direction)
 
-        clips = [head]
+        clips = [transition_blurred]
         if rest:
             clips.append(rest.set_start(duration))
         
@@ -196,7 +233,7 @@ class VideoEngine:
             transition: TransitionInstruction,
             resolution: Tuple[int, int]
     ) -> mpe.VideoClip:
-        """Whip pan в конце: улетает из кадра."""
+        """Whip pan в конце: улетает из кадра (в черный фон)."""
         duration = min(transition.duration, clip.duration)
         if duration <= 0:
             return clip
@@ -208,31 +245,56 @@ class VideoEngine:
         body = clip.subclip(0, total - duration) if total > duration else None
         tail = clip.subclip(max(total - duration, 0), total)
 
-        # Анимация вылета: от (0,0) к (dx, dy)
-        # Acceleration: разгоняемся
-        def outro_pos(t):
-            progress = t / duration
-            # ease-in cubic: p^3
-            p_eased = progress ** 3
-            return (int(dx * p_eased), int(dy * p_eased))
+        # Создаем "черный клип" как следующий
+        next_clip = mpe.ColorClip(size=resolution, color=(0,0,0), duration=duration)
 
-        # Динамический Motion Blur: от 0 к сильному
-        max_blur = 300
+        # --- GLOBAL COMPOSITE LOGIC ---
+        def get_progress(t):
+            return min(max(t / duration, 0.0), 1.0)
+
+        def ease_in_cubic(p):
+            return p * p * p
+
+        # Движение
+        def pos_tail(t):
+            p = get_progress(t)
+            eased = ease_in_cubic(p)
+            # tail улетает от (0,0) к (dx, dy)
+            return (int(dx * eased), int(dy * eased))
+
+        def pos_next(t):
+            p = get_progress(t)
+            eased = ease_in_cubic(p)
+            # next прилетает от (-dx, -dy) к (0,0)
+            # Но так как это outro, мы просто уводим tail, а next (черный) занимает его место
+            # next должен двигаться синхронно с tail, находясь слева/справа/сверху/снизу
+            return (int(-dx + dx * eased), int(-dy + dy * eased))
+
+        tail = tail.set_position(pos_tail)
+        next_clip = next_clip.set_position(pos_next)
+
+        transition_clip = mpe.CompositeVideoClip([tail, next_clip], size=resolution).set_duration(duration)
+
+        max_blur = transition.blur_strength
         blur_direction = "horizontal" if abs(dx) > abs(dy) else "vertical"
-        
-        def blur_func(t):
-            progress = t / duration
-            factor = progress ** 2
-            return max_blur * factor
 
-        tail = dynamic_motion_blur(tail, blur_func, direction=blur_direction).set_position(outro_pos)
+        def blur_func(t):
+            p = get_progress(t)
+            # Blur нарастает от 0 к максимуму
+            # Derivative of ease_in_cubic (p^3) is 3p^2
+            # Normalized: p^2
+            velocity_factor = p ** 2
+            return max_blur * velocity_factor
+
+        transition_blurred = dynamic_motion_blur(transition_clip, blur_func, direction=blur_direction)
 
         clips = []
         if body:
             clips.append(body)
-            tail = tail.set_start(body.duration)
+            # transition_blurred начинается сразу после body
+            transition_blurred = transition_blurred.set_start(body.duration)
         
-        clips.append(tail)
+        clips.append(transition_blurred)
         return mpe.CompositeVideoClip(clips, size=resolution).set_duration(clip.duration)
 
     def _apply_whip_pan_between(
@@ -243,8 +305,8 @@ class VideoEngine:
             resolution: Tuple[int, int]
     ) -> tuple[mpe.VideoClip, mpe.VideoClip, float]:
         """
-        Whip pan между двумя клипами.
-        Возвращает (модифицированный_prev, модифицированный_next, overlap_duration).
+        Whip pan между двумя клипами с глобальным размытием.
+        Создает единый композит перехода, чтобы размытие применялось ко всей сцене целиком.
         """
         d = min(transition.duration, prev_clip.duration, next_clip.duration)
         if d <= 0:
@@ -252,64 +314,216 @@ class VideoEngine:
 
         w, h = resolution
         dx, dy = self._get_slide_vector(transition.direction, w, h)
-        max_blur = 300
-        blur_direction = "horizontal" if abs(dx) > abs(dy) else "vertical"
-
+        
         # --- PREV CLIP (Уходит) ---
         total_prev = prev_clip.duration
         body_prev = prev_clip.subclip(0, total_prev - d) if total_prev > d else None
         tail_prev = prev_clip.subclip(max(total_prev - d, 0), total_prev)
-
-        # Движение от (0,0) к (dx, dy) (Acceleration)
-        def pos_out(t):
-            progress = min(t / d, 1.0)
-            p_eased = progress ** 3
-            return (int(dx * p_eased), int(dy * p_eased))
-
-        # Блюр нарастает
-        def blur_out(t):
-            progress = min(t / d, 1.0)
-            return max_blur * (progress ** 2)
-
-        tail_prev = dynamic_motion_blur(tail_prev, blur_out, direction=blur_direction).set_position(pos_out)
-
-        prev_parts = []
-        if body_prev:
-            prev_parts.append(body_prev)
-            tail_prev = tail_prev.set_start(body_prev.duration)
-        prev_parts.append(tail_prev)
-        
-        new_prev = mpe.CompositeVideoClip(prev_parts, size=resolution).set_duration(prev_clip.duration)
 
         # --- NEXT CLIP (Приходит) ---
         total_next = next_clip.duration
         head_next = next_clip.subclip(0, d)
         rest_next = next_clip.subclip(d) if total_next > d else None
 
-        # Движение от (-dx, -dy) к (0,0) (Deceleration)
-        def pos_in(t):
-            progress = min(t / d, 1.0)
-            p_eased = 1 - (1 - progress) ** 3
-            start_x, start_y = -dx, -dy
-            return (
-                int(start_x * (1 - p_eased)),
-                int(start_y * (1 - p_eased))
-            )
+        # --- GLOBAL COMPOSITE ---
+        # Используем единую функцию прогресса для синхронного движения
+        def get_progress(t):
+            return min(max(t / d, 0.0), 1.0)
 
-        # Блюр убывает
-        def blur_in(t):
-            progress = min(t / d, 1.0)
-            return max_blur * ((1 - progress) ** 2)
+        # Ease-in-out cubic для плавного разгона и торможения
+        def ease_in_out_cubic(p):
+            return 4 * p * p * p if p < 0.5 else 1 - pow(-2 * p + 2, 3) / 2
 
-        head_next = dynamic_motion_blur(head_next, blur_in, direction=blur_direction).set_position(pos_in)
+        # Оба клипа движутся как единое целое
+        def pos_tail(t):
+            p = get_progress(t)
+            eased = ease_in_out_cubic(p)
+            return (int(dx * eased), int(dy * eased))
 
-        next_parts = [head_next]
+        def pos_head(t):
+            p = get_progress(t)
+            eased = ease_in_out_cubic(p)
+            # head смещен относительно tail на (-dx, -dy)
+            return (int(-dx + dx * eased), int(-dy + dy * eased))
+
+        tail_prev = tail_prev.set_position(pos_tail)
+        head_next = head_next.set_position(pos_head)
+
+        # Создаем композит перехода, где оба клипа рендерятся вместе
+        transition_clip = mpe.CompositeVideoClip([tail_prev, head_next], size=resolution).set_duration(d)
+
+        # Глобальный блюр применяется к композиту
+        max_blur = transition.blur_strength
+        blur_direction = "horizontal" if abs(dx) > abs(dy) else "vertical"
+
+        def blur_func(t):
+            p = get_progress(t)
+            # Blur strength proportional to velocity (derivative of easing)
+            # This ensures blur fades out exactly as movement stops
+            if p < 0.5:
+                # Derivative of 4*p^3 is 12*p^2. Normalized to peak at 1.0 (at p=0.5) -> 4*p^2
+                velocity_factor = 4 * p * p
+            else:
+                # Derivative of 1 - (-2p + 2)^3 / 2 is 3*(-2p+2)^2. Normalized -> 4*(1-p)^2
+                velocity_factor = 4 * (1 - p) ** 2
+            
+            return max_blur * velocity_factor
+
+        transition_blurred = dynamic_motion_blur(transition_clip, blur_func, direction=blur_direction)
+
+        # --- СБОРКА РЕЗУЛЬТАТА ---
+        
+        # new_prev - это часть предыдущего клипа ДО перехода
+        # Если клип полностью ушел в переход, создаем пустой клип (техническая заглушка)
+        new_prev = body_prev if body_prev else mpe.ColorClip(size=resolution, color=(0,0,0), duration=0)
+
+        # new_next - это переход + остаток следующего клипа
+        next_parts = [transition_blurred]
         if rest_next:
             next_parts.append(rest_next.set_start(d))
         
         new_next = mpe.CompositeVideoClip(next_parts, size=resolution).set_duration(next_clip.duration)
 
         return new_prev, new_next, d
+
+    def _apply_motion_blur_intro(
+            self,
+            clip: mpe.VideoClip,
+            transition: TransitionInstruction,
+            resolution: Tuple[int, int]
+    ) -> mpe.VideoClip:
+        """Motion Blur в начале: появляется из размытия."""
+        duration = min(transition.duration, clip.duration)
+        if duration <= 0:
+            return clip
+
+        # Делим клип
+        head = clip.subclip(0, duration)
+        rest = clip.subclip(duration) if clip.duration > duration else None
+
+        max_blur = transition.blur_strength
+        # Blur убывает
+        def blur_func(t):
+            progress = t / duration
+            return max_blur * ((1 - progress) ** 2)
+
+        head = dynamic_motion_blur(head, blur_func, direction="horizontal")
+
+        if transition.fade:
+            head = head.fadein(duration)
+        
+        if transition.glow:
+             # Simple glow: boost brightness
+             # Factor 1.5 -> 1.0
+             head = dynamic_brightness(head, lambda t: 1.0 + 0.5 * ((1 - t/duration)**2))
+
+        clips = [head]
+        if rest:
+            clips.append(rest.set_start(duration))
+        
+        return mpe.CompositeVideoClip(clips, size=resolution).set_duration(clip.duration)
+
+    def _apply_motion_blur_outro(
+            self,
+            clip: mpe.VideoClip,
+            transition: TransitionInstruction,
+            resolution: Tuple[int, int]
+    ) -> mpe.VideoClip:
+        """Motion Blur в конце: уходит в размытие."""
+        duration = min(transition.duration, clip.duration)
+        if duration <= 0:
+            return clip
+
+        total = clip.duration
+        body = clip.subclip(0, total - duration) if total > duration else None
+        tail = clip.subclip(max(total - duration, 0), total)
+
+        max_blur = transition.blur_strength
+        # Blur нарастает
+        def blur_func(t):
+            progress = t / duration
+            return max_blur * (progress ** 2)
+
+        tail = dynamic_motion_blur(tail, blur_func, direction="horizontal")
+
+        if transition.fade:
+            tail = tail.fadeout(duration)
+
+        if transition.glow:
+             # Simple glow: boost brightness
+             # Factor 1.0 -> 1.5
+             tail = dynamic_brightness(tail, lambda t: 1.0 + 0.5 * (t/duration)**2)
+
+        clips = []
+        if body:
+            clips.append(body)
+            tail = tail.set_start(body.duration)
+        
+        clips.append(tail)
+        return mpe.CompositeVideoClip(clips, size=resolution).set_duration(clip.duration)
+
+    def _apply_motion_blur_between(
+            self,
+            prev_clip: mpe.VideoClip,
+            next_clip: mpe.VideoClip,
+            transition: TransitionInstruction,
+            resolution: Tuple[int, int]
+    ) -> tuple[mpe.VideoClip, mpe.VideoClip, float]:
+        """Motion Blur между клипами."""
+        d = min(transition.duration, prev_clip.duration, next_clip.duration)
+        if d <= 0:
+            return prev_clip, next_clip, 0.0
+
+        max_blur = transition.blur_strength
+
+        # --- PREV CLIP ---
+        total_prev = prev_clip.duration
+        body_prev = prev_clip.subclip(0, total_prev - d) if total_prev > d else None
+        tail_prev = prev_clip.subclip(max(total_prev - d, 0), total_prev)
+
+        def blur_out(t):
+            progress = min(t / d, 1.0)
+            return max_blur * (progress ** 2)
+
+        tail_prev = dynamic_motion_blur(tail_prev, blur_out, direction="horizontal")
+        
+        if transition.glow:
+             tail_prev = dynamic_brightness(tail_prev, lambda t: 1.0 + 0.5 * (t/d)**2)
+
+        prev_parts = []
+        if body_prev:
+            prev_parts.append(body_prev)
+            tail_prev = tail_prev.set_start(body_prev.duration)
+        prev_parts.append(tail_prev)
+        new_prev = mpe.CompositeVideoClip(prev_parts, size=resolution).set_duration(prev_clip.duration)
+
+        # --- NEXT CLIP ---
+        head_next = next_clip.subclip(0, d)
+        rest_next = next_clip.subclip(d) if next_clip.duration > d else None
+
+        def blur_in(t):
+            progress = min(t / d, 1.0)
+            return max_blur * ((1 - progress) ** 2)
+
+        head_next = dynamic_motion_blur(head_next, blur_in, direction="horizontal")
+
+        if transition.fade:
+            # Crossfade: next fades in over prev
+            head_next = head_next.fadein(d)
+        
+        if transition.glow:
+             head_next = dynamic_brightness(head_next, lambda t: 1.0 + 0.5 * ((1 - t/d)**2))
+
+        next_parts = [head_next]
+        if rest_next:
+            next_parts.append(rest_next.set_start(d))
+        new_next = mpe.CompositeVideoClip(next_parts, size=resolution).set_duration(next_clip.duration)
+
+        # If not fading (crossfade), we want a sequential cut at the peak of the blur.
+        # So overlap should be 0.
+        overlap = d if transition.fade else 0.0
+
+        return new_prev, new_next, overlap
 
     # --- MAIN RENDER LOGIC ---
 
@@ -468,6 +682,8 @@ class VideoEngine:
                     clip = clip.fadein(d)
                 elif intro.type == TransitionType.WHIP_PAN:
                     clip = self._apply_whip_pan_intro(clip, intro, target_resolution)
+                elif intro.type == TransitionType.MOTION_BLUR:
+                    clip = self._apply_motion_blur_intro(clip, intro, target_resolution)
 
             # 2. Transition from Previous Clip (переход между клипами)
             transition: Optional[TransitionInstruction] = None
@@ -513,8 +729,18 @@ class VideoEngine:
                     # Рассчитываем старт с учетом нахлеста
                     start = max(cursor - overlap, 0.0)
                     cursor = start + clip.duration
+
+            elif transition and transition.type == TransitionType.MOTION_BLUR:
+                if scheduled:
+                    prev_clip, prev_start = scheduled[-1]
+                    new_prev, new_clip, overlap = self._apply_motion_blur_between(
+                        prev_clip, clip, transition, target_resolution
+                    )
+                    scheduled[-1] = (new_prev, prev_start)
+                    clip = new_clip
+                    start = max(cursor - overlap, 0.0)
+                    cursor = start + clip.duration
                 else:
-                    # Если это первый клип (странно, но бывает), просто ставим
                     start = cursor
                     cursor += clip.duration
             else:
@@ -538,6 +764,10 @@ class VideoEngine:
 
                 elif outro.type == TransitionType.WHIP_PAN:
                     last_clip = self._apply_whip_pan_outro(last_clip, outro, target_resolution)
+                    scheduled[-1] = (last_clip, last_start)
+                
+                elif outro.type == TransitionType.MOTION_BLUR:
+                    last_clip = self._apply_motion_blur_outro(last_clip, outro, target_resolution)
                     scheduled[-1] = (last_clip, last_start)
 
         # Собираем финальный композит

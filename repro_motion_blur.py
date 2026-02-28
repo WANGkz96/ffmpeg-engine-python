@@ -29,17 +29,18 @@ req = RenderRequest(
             end=3,
             transitions_before=[
                 TransitionInstruction(
-                    type=TransitionType.WHIP_PAN,
-                    duration=1,
-                    direction=TransitionDirection.TOP,
-                    blur_strength=200
+                    type=TransitionType.MOTION_BLUR,
+                    duration=1.0,
+                    blur_strength=100,
+                    fade=True  # Intro: Blur + Fade In
                 )
             ],
             transitions_after=[
                 TransitionInstruction(
-                    type=TransitionType.WHIP_PAN,
-                    duration=1,
-                    blur_strength=200
+                    type=TransitionType.MOTION_BLUR,
+                    duration=1.0,
+                    blur_strength=100,
+                    glow=True # Between: Blur + Glow
                 )
             ]
         ),
@@ -49,16 +50,16 @@ req = RenderRequest(
             end=3,
             transitions_after=[
                 TransitionInstruction(
-                    type=TransitionType.WHIP_PAN,
-                    duration=1,
-                    direction=TransitionDirection.TOP,
-                    blur_strength=200
+                    type=TransitionType.MOTION_BLUR,
+                    duration=1.0,
+                    blur_strength=100,
+                    fade=True # Outro: Blur + Fade Out
                 )
             ]
         )
     ],
     output=OutputInstruction(
-        filename="whip_test.mp4",
+        filename="motion_blur_test.mp4",
         format="mp4",
         fps=30,
         resolution=ResolutionModel(width=1080, height=1920)

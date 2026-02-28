@@ -1,0 +1,47 @@
+{
+    "clips": [
+        {
+            "source": "media/14705086_1080_1920_30fps.mp4",
+            "start": 0,
+            "end": 3,
+            "transitions_before": [
+                {
+                    "type": "motion_blur",
+                    "duration": 1.0,
+                    "blur_strength": 100,
+                    "fade": true
+                }
+            ],
+            "transitions_after": [
+                {
+                    "type": "motion_blur",
+                    "duration": 1.0,
+                    "blur_strength": 100,
+                    "glow": true
+                }
+            ]
+        },
+        {
+            "source": "media/5512609-hd_1080_1920_25fps.mp4",
+            "start": 0,
+            "end": 3,
+            "transitions_after": [
+                {
+                    "type": "motion_blur",
+                    "duration": 1.0,
+                    "blur_strength": 100,
+                    "fade": true
+                }
+            ]
+        }
+    ],
+    "output": {
+        "filename": "motion_blur_test.mp4",
+        "format": "mp4",
+        "fps": 30,
+        "resolution": {
+            "width": 1080,
+            "height": 1920
+        }
+    }
+}

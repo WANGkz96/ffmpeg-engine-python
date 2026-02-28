@@ -73,10 +73,34 @@ Each entry represents a source video fragment.
 | `fit_mode` | enum | `contain` | `cover` (fill & crop) or `contain` (fit within frame). |
 | `background_mode` | enum | `blur` | When `fit_mode=contain`: `blur` or `color`. |
 | `background_color` | RGBA | dark gray | Used for padding background or blur intensity alpha. |
-| `transitions_after` | array | `[]` | Transition applied when moving to the next clip. Supported: `crossfade`, `fade_black`. |
+| `transitions_before` | array | `[]` | Transitions applied to the *start* of this clip (Intro). |
+| `transitions_after` | array | `[]` | Transitions applied *after* this clip (Between clips or Outro). |
 | `chroma_key` | object | disabled | `{ "enabled": true, "color": {"r":0,"g":255,"b":0}, "threshold":0.1, "softness":0.0 }`. |
 | `adjustments` | object | zeros | Fine tuning for brightness, contrast, saturation, hue (`-1.0`..`1.0`). |
 | `playback_rate` | float | `1.0` | Speed multiplier. |
+| `volume` | float | `1.0` | Linear multiplier. |
+
+### Transition Settings
+
+Used in `transitions_before` and `transitions_after`.
+
+| Field | Type | Default | Description |
+| --- | --- | --- | --- |
+| `type` | enum | `none` | `crossfade`, `fade_black`, `whip_pan`, `motion_blur`. |
+| `duration` | float | `0.5` | Duration of the transition in seconds. |
+| `direction` | enum | `left` | `left`, `right`, `top`, `bottom`. Used by `whip_pan`. |
+| `blur_strength`| float | `300.0` | Intensity of motion blur for `whip_pan` and `motion_blur`. |
+| `fade` | bool | `false` | If `true`, adds an opacity fade to the transition. |
+| `glow` | bool | `false` | If `true`, adds a dynamic brightness boost (glow) during the transition. |
+
+#### Transition Types Detail
+
+- **`crossfade`**: Standard opacity overlap between clips.
+- **`fade_black`**: Fades the outgoing clip to black, then fades the incoming clip from black.
+- **`whip_pan`**: A fast "camera pan" effect with global motion blur. Clips move in the specified `direction`.
+- **`motion_blur`**: Applies a directional blur without moving the clips. Can be combined with `fade` and `glow`.
+    - If `fade=false`, the transition is a sequential cut at the peak of the blur.
+    - If `fade=true`, it performs a crossfade while blurring.
 
 ### Audio Instructions
 

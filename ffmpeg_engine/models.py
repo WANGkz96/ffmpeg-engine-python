@@ -20,6 +20,7 @@ class TransitionType(str, Enum):
     CROSSFADE = "crossfade"
     FADE_BLACK = "fade_black"
     WHIP_PAN = "whip_pan"
+    MOTION_BLUR = "motion_blur"
 
 
 class BackgroundMode(str, Enum):
@@ -57,6 +58,9 @@ class TransitionInstruction(BaseModel):
     type: TransitionType = TransitionType.NONE
     duration: float = Field(0.5, ge=0.0)
     direction: TransitionDirection = TransitionDirection.LEFT
+    blur_strength: float = Field(300.0, ge=0.0, description="Motion blur intensity for whip_pan transitions")
+    fade: bool = Field(False, description="Combine with fade opacity")
+    glow: bool = Field(False, description="Combine with glow effect")
 
 
 class ChromaKeyInstruction(BaseModel):
