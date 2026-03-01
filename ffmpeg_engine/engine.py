@@ -122,6 +122,8 @@ from .models import (
     ImageInstruction,
     RenderRequest,
     RenderResult,
+    TimelineClipModel,
+    TimelineDetailModel,
     TextInstruction,
     TransitionInstruction,
     TransitionType,
@@ -138,6 +140,24 @@ class VideoEngine:
     def __init__(self, workspace: Path | str = "renders") -> None:
         self.workspace = Path(workspace)
         self.workspace.mkdir(parents=True, exist_ok=True)
+
+    @staticmethod
+    def _is_windows_absolute(path_value: str) -> bool:
+        return len(path_value) > 2 and path_value[1] == ":" and path_value[2] in {"\\", "/"}
+
+    def _resolve_media_path(self, source: Path) -> Path:
+        source_text = str(source).strip()
+        path_obj = Path(source_text).expanduser()
+        if path_obj.is_absolute() or self._is_windows_absolute(source_text):
+            return path_obj
+        return (Path.cwd() / path_obj).resolve()
+
+    @staticmethod
+    def _is_auto_placed_instruction(instruction: ClipInstruction) -> bool:
+        fields_set = getattr(instruction, "model_fields_set", None)
+        if fields_set is None:
+            fields_set = getattr(instruction, "__fields_set__", set())
+        return "start" not in fields_set and "end" not in fields_set
 
     # --- ВСПОМОГАТЕЛЬНЫЕ МЕТОДЫ ДЛЯ WHIP PAN ---
 
@@ -534,6 +554,7 @@ class VideoEngine:
 
         clips = []
         final_clip = None
+        timeline = TimelineDetailModel(clips=[])
         try:
             # Подготовка всех клипов (ресайз, эффекты, хромакей)
             for clip_instruction in request.clips:
@@ -544,7 +565,8 @@ class VideoEngine:
                 raise VideoEngineError("No clips provided in the request")
 
             # Сборка видео с переходами
-            video = self._concatenate_with_transitions(clips, request.clips, target_resolution)
+            video, timeline_clips = self._concatenate_with_transitions(clips, request.clips, target_resolution)
+            timeline = TimelineDetailModel(clips=timeline_clips)
 
             # Наложение текста и картинок
             overlay = self._build_overlay(video.duration, request, target_resolution)
@@ -572,10 +594,14 @@ class VideoEngine:
                     final_clip.close()
                 except: pass
 
-        return RenderResult(status="ok", duration=final_clip.duration, output=output_path)
+        return RenderResult(status="ok", duration=final_clip.duration, output=output_path, timeline=timeline)
 
     def _prepare_clip(self, instruction: ClipInstruction, target_resolution: tuple[int, int], fps: int) -> mpe.VideoClip:
-        clip = mpe.VideoFileClip(str(instruction.source))
+        source_path = self._resolve_media_path(instruction.source)
+        if not source_path.exists():
+            raise VideoEngineError(f"Clip source not found: {source_path}")
+
+        clip = mpe.VideoFileClip(str(source_path))
         start = max(instruction.start, 0.0)
         end = instruction.end if instruction.end else None
         if end is not None:
@@ -661,7 +687,7 @@ class VideoEngine:
             clips: List[mpe.VideoClip],
             clip_instructions: List[ClipInstruction],
             target_resolution: tuple[int, int],
-    ) -> mpe.VideoClip:
+    ) -> tuple[mpe.VideoClip, List[TimelineClipModel]]:
         """
         Собирает клипы в один таймлайн, обрабатывая наложения (transitions).
         """
@@ -777,7 +803,19 @@ class VideoEngine:
         # size=target_resolution важен, чтобы canvas не скакал
         base = mpe.CompositeVideoClip(layered, size=target_resolution)
         base = base.set_duration(cursor)
-        return base
+        timeline = []
+        for index, ((scheduled_clip, scheduled_start), instruction) in enumerate(zip(scheduled, clip_instructions)):
+            clip_end = scheduled_start + scheduled_clip.duration
+            timeline.append(
+                TimelineClipModel(
+                    index=index,
+                    source=self._resolve_media_path(instruction.source),
+                    start=round(max(scheduled_start, 0.0), 1),
+                    end=round(max(clip_end, 0.0), 1),
+                    auto_placed=self._is_auto_placed_instruction(instruction),
+                )
+            )
+        return base, timeline
 
     def _build_overlay(
             self, duration: float, request: RenderRequest, target_resolution: tuple[int, int]
@@ -845,9 +883,14 @@ class VideoEngine:
         end_time = instruction.end if instruction.end else duration
         if end_time <= instruction.start:
             return None
+        source_path = self._resolve_media_path(instruction.source)
+        if not source_path.exists():
+            logger.warning("Image source not found: %s", source_path)
+            return None
         try:
-            clip = mpe.ImageClip(str(instruction.source))
-        except OSError:
+            clip = mpe.ImageClip(str(source_path))
+        except OSError as exc:
+            logger.warning("Image loading failed (%s): %s", source_path, exc)
             return None
 
         if instruction.size:
@@ -880,9 +923,14 @@ class VideoEngine:
     def _build_audio(self, request: RenderRequest, duration: float) -> Optional[mpe.AudioClip]:
         tracks = []
         for instruction in request.audio:
+            source_path = self._resolve_media_path(instruction.source)
+            if not source_path.exists():
+                logger.warning("Audio source not found: %s", source_path)
+                continue
             try:
-                clip = mpe.AudioFileClip(str(instruction.source))
-            except OSError:
+                clip = mpe.AudioFileClip(str(source_path))
+            except OSError as exc:
+                logger.warning("Audio loading failed (%s): %s", source_path, exc)
                 continue
             start = max(instruction.start, 0.0)
             end = instruction.end if instruction.end else clip.duration
@@ -905,11 +953,13 @@ class VideoEngine:
     def _export(self, clip: mpe.VideoClip, request: RenderRequest) -> Path:
         output_dir = self.workspace
         output_dir.mkdir(parents=True, exist_ok=True)
-        filename = request.output.filename
-        extension = request.output.format
-        if not filename.endswith(f".{extension}"):
+        filename = Path(request.output.filename).name
+        extension = request.output.format.lower().lstrip(".")
+        if not filename:
+            filename = "render"
+        if Path(filename).suffix.lower() != f".{extension}":
             filename = f"{Path(filename).stem}.{extension}"
-        output_path = output_dir / filename
+        output_path = (output_dir / filename).resolve()
 
         use_gpu = False  # Set True if NVENC available
         if use_gpu and extension in {"mp4", "mov"}:

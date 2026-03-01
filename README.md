@@ -6,11 +6,14 @@ HTTP-based video rendering microservice powered by FastAPI, MoviePy, and FFmpeg.
 
 - Aspect ratio templates for popular platforms (YouTube, TikTok, Instagram, Stories).
 - Timeline instructions supporting clip trimming, auto-fit modes (cover/contain), background blur or solid color, and optional chroma key.
+- Auto-append clip placement when `start` and `end` are omitted in clip instructions.
 - Crossfade and fade-to-black transitions.
 - Color adjustments (brightness, contrast, saturation, hue).
 - Audio mixing with precise start/end trimming, fades, and volume controls.
 - Text and PNG overlays with positioning, animation, and basic keyframe scaling.
-- Safe defaults to avoid runtime crashes when instructions are incomplete.
+- JSON detail mode (`detail_answer`) with per-clip timeline start/end values.
+- Download endpoint (`/downloads/...`) and absolute output file paths in JSON responses.
+- Safe defaults for incomplete output settings (`format=mp4`, `fps=30`, datetime filename, `1920x1080` fallback resolution).
 
 ## Quick Start
 
@@ -25,8 +28,12 @@ HTTP-based video rendering microservice powered by FastAPI, MoviePy, and FFmpeg.
 3. Send a render request:
    ```bash
    curl -X POST http://localhost:8000/render \
-     -H "Content-Type: application/json" \
-     -d @examples/test1.json
+      -H "Content-Type: application/json" \
+      -d @examples/test1.json
+   ```
+4. Download a render from the server:
+   ```bash
+   curl -O http://localhost:8000/downloads/<filename>.mp4
    ```
 
 See [API_REFERENCE.md](API_REFERENCE.md) for the full payload specification and the `examples/` directory for ready-to-use request bodies.
@@ -50,7 +57,8 @@ See [API_REFERENCE.md](API_REFERENCE.md) for the full payload specification and 
    ```
    Replace `8000` with your `HOST_PORT` if you started compose with a custom port.
 3. Resulting video will be available at:
-   - `renders/whip_test.mp4`
+   - local path: `renders/whip_test.mp4`
+   - HTTP download: `http://localhost:8000/downloads/whip_test.mp4`
 
 The compose file mounts:
 - `./media` -> `/app/media` (read-only source assets)

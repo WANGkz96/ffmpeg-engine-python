@@ -1,0 +1,31 @@
+{
+  "detail_answer": true,
+  "clips": [
+    {
+      "source": "media/Reanimal_Demo_Walkthrough_Puzzle_Survival_Adventure [m2Tce6lZ-4o].mp4",
+      "fit_mode": "contain",
+      "background_mode": "color",
+      "background_color": { "r": 0, "g": 0, "b": 0, "a": 1.0 }
+    },
+    {
+      "source": "media/REANIMAL_Demo_Complete_Walkthrough_Ending_Full_Gameplay_No_Commentary [K7oeKLHfceI].mp4",
+      "fit_mode": "contain",
+      "background_mode": "color",
+      "background_color": { "r": 0, "g": 0, "b": 0, "a": 1.0 }
+    },
+    {
+      "source": "media/Chapter_1_Dead_in_the_Water_-_ReAnimal_No_Commentary_Gameplay_Guide [C7uZ14B1ICk].mp4",
+      "fit_mode": "contain",
+      "background_mode": "color",
+      "background_color": { "r": 0, "g": 0, "b": 0, "a": 1.0 }
+    }
+  ],
+  "output": {
+    "format": "mp4",
+    "fps": 2,
+    "resolution": {
+        "width": 1280,
+        "height": 720
+    }
+  }
+}

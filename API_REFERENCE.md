@@ -2,7 +2,7 @@
 
 ## Overview
 
-The FFmpeg Engine is an HTTP service that renders videos using `moviepy` and `ffmpeg`. It accepts JSON instructions describing the output format, clip timeline, overlays, and audio design. The `/render` endpoint performs validation and produces either a JSON response or the rendered video depending on the request headers.
+The FFmpeg Engine is an HTTP service that renders videos using `moviepy` and `ffmpeg`. It accepts JSON instructions describing the output format, clip timeline, overlays, and audio design. The `/render` endpoint validates input, renders the video, and can return either a JSON response (with download URL + absolute path) or the binary file.
 
 Base URL: `http://<host>:<port>/`
 
@@ -28,13 +28,20 @@ Returns the registered aspect-ratio templates:
 ```
 
 ### `POST /render`
-Consumes a structured JSON payload (see below). The `Accept` header controls the response:
+Consumes a structured JSON payload (see below).
 
-- Default (`application/json`): returns `{"status": "ok", "duration": <seconds>, "output": "<path>"}`.
+- Default (`application/json`): returns status, duration, absolute output path, and `/downloads/...` URL.
 - Video MIME type (`video/mp4`, `video/webm`, ...): streams the produced file if its extension matches the MIME type.
+- Query flag `detail_answer=true` (or body field `detail_answer: true`) adds timeline details per clip (`start`/`end` rounded to tenths).
 
 ### `POST /render/raw`
 Accepts arbitrary JSON and validates it against the schema at runtime. Useful when the caller cannot send typed JSON bodies (e.g., curl from shell).
+
+### `GET /downloads/`
+Returns the list of rendered files with absolute paths and downloadable URLs.
+
+### `GET /downloads/{filename}`
+Downloads a previously rendered file from the `renders/` workspace.
 
 ## Instruction Schema
 
@@ -46,7 +53,8 @@ High-level structure:
   "clips": [ ... ],
   "audio": [ ... ],
   "texts": [ ... ],
-  "images": [ ... ]
+  "images": [ ... ],
+  "detail_answer": false
 }
 ```
 
@@ -54,12 +62,14 @@ High-level structure:
 
 | Field | Type | Default | Notes |
 | --- | --- | --- | --- |
-| `template` | string | `tiktok_9_16` | One of `youtube_16_9`, `tiktok_9_16`, `instagram_square`, `story_4_5`, `story_16_9`. |
-| `resolution` | object | template value | `{ "width": 1080, "height": 1920 }`. Overrides template. |
+| `template` | string | `null` | One of `youtube_16_9`, `tiktok_9_16`, `instagram_square`, `story_4_5`, `story_16_9`. |
+| `resolution` | object | `{ "width": 1920, "height": 1080 }`* | Overrides template. |
 | `format` | string | `mp4` | Supported: `mp4`, `mov`, `webm`, `mkv`, etc. |
-| `filename` | string | `rendered.mp4` | Final file name stored under `renders/`. |
+| `filename` | string | current datetime (e.g. `2026-03-01_17-39-20`) | Final file name stored under `renders/`. |
 | `fps` | integer | `30` | Target frame rate. |
 | `bitrate` | string | `null` | Optional ffmpeg bitrate string, e.g., `"6M"`. |
+
+\* If `template` is explicitly set and `resolution` is omitted, template resolution is used.
 
 ### Clip Instructions
 
@@ -67,7 +77,7 @@ Each entry represents a source video fragment.
 
 | Field | Type | Default | Description |
 | --- | --- | --- | --- |
-| `source` | string (path) | required | Path to the source video. |
+| `source` | string (path) | required | Source video path. Supports relative paths and absolute paths (`C:/...`, `/...`). |
 | `start` | float | `0.0` | Cut-in timestamp in seconds. |
 | `end` | float | `null` | Cut-out timestamp. Ignored if before `start` or beyond video duration. |
 | `fit_mode` | enum | `contain` | `cover` (fill & crop) or `contain` (fit within frame). |
@@ -79,6 +89,10 @@ Each entry represents a source video fragment.
 | `adjustments` | object | zeros | Fine tuning for brightness, contrast, saturation, hue (`-1.0`..`1.0`). |
 | `playback_rate` | float | `1.0` | Speed multiplier. |
 | `volume` | float | `1.0` | Linear multiplier. |
+
+If both `start` and `end` are omitted in a clip object, the clip is appended automatically to the timeline in request order:
+- first clip starts at `0.0`
+- each next clip starts where the previous visible clip ends
 
 ### Transition Settings
 
@@ -142,11 +156,49 @@ Used in `transitions_before` and `transitions_after`.
 | `size` | object | `null` | `{ "width": 400, "height": 400 }` to force resize. |
 | `animation` | object | defaults | `{"fade_in":0.2,"fade_out":0.2,"keyframes":[]}`. Keyframes accept `{"time":1.0,"duration":0.5,"scale":1.1}`. |
 
+## Response Format
+
+Default JSON response:
+
+```json
+{
+  "status": "ok",
+  "duration": 8.23,
+  "output": {
+    "filename": "2026-03-01_17-39-20.mp4",
+    "absolute_path": "C:/.../renders/2026-03-01_17-39-20.mp4",
+    "download_url": "http://localhost:8000/downloads/2026-03-01_17-39-20.mp4"
+  }
+}
+```
+
+Detailed response (`detail_answer=true`):
+
+```json
+{
+  "status": "ok",
+  "duration": 8.23,
+  "output": {
+    "filename": "2026-03-01_17-39-20.mp4",
+    "absolute_path": "C:/.../renders/2026-03-01_17-39-20.mp4",
+    "download_url": "http://localhost:8000/downloads/2026-03-01_17-39-20.mp4"
+  },
+  "timeline": {
+    "clips": [
+      {"index": 0, "source": "C:/.../a.mp4", "start": 0.0, "end": 3.0, "auto_placed": true},
+      {"index": 1, "source": "C:/.../b.mp4", "start": 3.0, "end": 6.0, "auto_placed": true}
+    ],
+    "total_duration": 8.2
+  }
+}
+```
+
 ## Error Handling
 
 - Invalid or missing fields fall back to safe defaults whenever possible.
 - Cutting ranges outside the media duration are ignored instead of raising an error.
-- Missing media files skip the associated overlay/audio but do not stop the render.
+- Missing clip sources fail the render with HTTP 400.
+- Missing image/audio sources are skipped (warning only).
 - Fatal errors return `{ "status": "error", "message": "..." }` with HTTP 400.
 
 ## Running the Service

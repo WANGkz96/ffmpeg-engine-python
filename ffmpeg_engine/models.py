@@ -1,6 +1,7 @@
 """Data models for the ffmpeg engine instructions."""
 from __future__ import annotations
 
+from datetime import datetime
 from enum import Enum
 from pathlib import Path
 from typing import List, Literal, Optional
@@ -52,6 +53,15 @@ class ResolutionModel(BaseModel):
     @property
     def size(self) -> tuple[int, int]:
         return (self.width, self.height)
+
+
+def default_output_filename() -> str:
+    # Datetime-based filename to avoid collisions when output block is omitted.
+    return datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+
+
+def default_output_resolution() -> ResolutionModel:
+    return ResolutionModel(width=1920, height=1080)
 
 
 class TransitionInstruction(BaseModel):
@@ -164,9 +174,17 @@ class OutputInstruction(BaseModel):
     template: Optional[str] = None
     resolution: Optional[ResolutionModel] = None
     format: str = "mp4"
-    filename: str = "rendered.mp4"
+    filename: str = Field(default_factory=default_output_filename)
     fps: int = Field(30, gt=0)
     bitrate: Optional[str] = None
+
+    @validator("resolution", always=True)
+    def apply_default_resolution(cls, v, values):
+        if v is not None:
+            return v
+        if values.get("template"):
+            return None
+        return default_output_resolution()
 
 
 class RenderRequest(BaseModel):
@@ -175,6 +193,19 @@ class RenderRequest(BaseModel):
     audio: List[AudioInstruction] = Field(default_factory=list)
     texts: List[TextInstruction] = Field(default_factory=list)
     images: List[ImageInstruction] = Field(default_factory=list)
+    detail_answer: bool = False
+
+
+class TimelineClipModel(BaseModel):
+    index: int
+    source: Path
+    start: float
+    end: float
+    auto_placed: bool = False
+
+
+class TimelineDetailModel(BaseModel):
+    clips: List[TimelineClipModel] = Field(default_factory=list)
 
 
 class RenderResult(BaseModel):
@@ -182,4 +213,5 @@ class RenderResult(BaseModel):
     duration: float
     output: Path
     message: Optional[str] = None
+    timeline: Optional[TimelineDetailModel] = None
 
