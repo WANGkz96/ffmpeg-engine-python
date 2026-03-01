@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import logging
+import os
 from pathlib import Path
 from typing import List, Optional, Tuple
 
@@ -961,11 +962,12 @@ class VideoEngine:
             filename = f"{Path(filename).stem}.{extension}"
         output_path = (output_dir / filename).resolve()
 
-        use_gpu = False  # Set True if NVENC available
+        use_gpu = os.getenv("FFMPEG_USE_GPU", "0").lower() in {"1", "true", "yes", "on"}
+        gpu_preset = os.getenv("FFMPEG_GPU_PRESET", "p4")
         if use_gpu and extension in {"mp4", "mov"}:
             codec = "h264_nvenc"
             audio_codec = "aac"
-            ffmpeg_params = ["-preset", "p4"]
+            ffmpeg_params = ["-preset", gpu_preset]
         else:
             codec = "libx264" if extension in {"mp4", "mov"} else None
             audio_codec = "aac" if extension in {"mp4", "mov"} else None

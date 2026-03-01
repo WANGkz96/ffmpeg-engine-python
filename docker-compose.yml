@@ -3,8 +3,16 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+    gpus: all
     ports:
       - "${HOST_PORT:-8000}:8000"
+    environment:
+      - FFMPEG_USE_GPU=${FFMPEG_USE_GPU:-0}
+      - FFMPEG_GPU_PRESET=${FFMPEG_GPU_PRESET:-p4}
+      - NVIDIA_VISIBLE_DEVICES=${NVIDIA_VISIBLE_DEVICES:-all}
+      - NVIDIA_DRIVER_CAPABILITIES=${NVIDIA_DRIVER_CAPABILITIES:-compute,utility,video}
     volumes:
+      # Mount source code so changes on host are visible in container.
+      - ./:/app
       - ./media:/app/media:ro
       - ./renders:/app/renders
