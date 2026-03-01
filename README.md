@@ -31,3 +31,28 @@ HTTP-based video rendering microservice powered by FastAPI, MoviePy, and FFmpeg.
 
 See [API_REFERENCE.md](API_REFERENCE.md) for the full payload specification and the `examples/` directory for ready-to-use request bodies.
 
+## Run In Docker
+
+1. Build and start the service:
+   ```bash
+   docker compose up --build -d
+   ```
+   If port `8000` is busy:
+   ```bash
+   HOST_PORT=8011 docker compose up --build -d
+   ```
+2. Send a render request with `repro_whip.json`:
+   ```bash
+   curl -X POST http://localhost:8000/render/raw \
+      -H "Content-Type: application/json" \
+      -H "Accept: application/json" \
+      --data-binary "@repro_whip.json"
+   ```
+   Replace `8000` with your `HOST_PORT` if you started compose with a custom port.
+3. Resulting video will be available at:
+   - `renders/whip_test.mp4`
+
+The compose file mounts:
+- `./media` -> `/app/media` (read-only source assets)
+- `./renders` -> `/app/renders` (render output)
+
