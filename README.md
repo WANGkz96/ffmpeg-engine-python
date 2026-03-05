@@ -14,6 +14,7 @@ HTTP-based video rendering microservice powered by FastAPI, MoviePy, and FFmpeg.
 - JSON detail mode (`detail_answer`) with per-clip timeline start/end values.
 - Download endpoint (`/downloads/...`) and absolute output file paths in JSON responses.
 - Safe defaults for incomplete output settings (`format=mp4`, `fps=30`, datetime filename, `1920x1080` fallback resolution).
+- Optional fast processing mode (`mode=concat_normalize`) for normalize+concat via pure FFmpeg (video + audio, faster than full composition render).
 
 ## Quick Start
 
@@ -62,5 +63,14 @@ See [API_REFERENCE.md](API_REFERENCE.md) for the full payload specification and 
 
 The compose file mounts:
 - `./media` -> `/app/media` (read-only source assets)
+- `${EXTRA_MEDIA_HOST_PATH:-./media}` -> `${EXTRA_MEDIA_CONTAINER_PATH:-/external_media}` (optional external source root for host absolute paths)
 - `./renders` -> `/app/renders` (render output)
+
+Absolute paths in Docker:
+- Containers cannot directly read host paths like `C:/...` unless that host folder is mounted.
+- Use `MEDIA_PATH_MAPPINGS` to remap host absolute prefixes to container prefixes.
+- Example:
+  - `EXTRA_MEDIA_HOST_PATH=C:/Users/Rinzler/Desktop/Video-pipeline/Video-pipeline/tests/STEP_3_MEDIA`
+  - `EXTRA_MEDIA_CONTAINER_PATH=/external_media`
+  - `MEDIA_PATH_MAPPINGS=C:/Users/Rinzler/Desktop/Video-pipeline/Video-pipeline/tests/STEP_3_MEDIA=/external_media`
 

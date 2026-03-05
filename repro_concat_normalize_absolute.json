@@ -1,0 +1,20 @@
+﻿{
+  "mode": "concat_normalize",
+  "detail_answer": true,
+  "clips": [
+    {
+      "source": "C:/Users/Rinzler/Desktop/Video-pipeline/Video-pipeline/tests/STEP_3_MEDIA/20260302_165046/original/Brook_Horse_Boss_Fight_Reanimal_4K_60FPS [sPSl_pP4e-A].mp4"
+    },
+    {
+      "source": "C:/Users/Rinzler/Desktop/Video-pipeline/Video-pipeline/tests/STEP_3_MEDIA/20260302_165046/original/Reanimal_-_Official_Launch_Trailer [V6NhwZpqo3Q].mp4"
+    }
+  ],
+  "output": {
+    "format": "mp4",
+    "fps": 2,
+    "resolution": {
+      "width": 1280,
+      "height": 720
+    }
+  }
+}

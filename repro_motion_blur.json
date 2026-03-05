@@ -39,6 +39,7 @@
         "filename": "motion_blur_test.mp4",
         "format": "mp4",
         "fps": 30,
+        "bitrate": "8M",
         "resolution": {
             "width": 1080,
             "height": 1920

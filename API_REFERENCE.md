@@ -49,6 +49,7 @@ High-level structure:
 
 ```json
 {
+  "mode": "render",
   "output": { ... },
   "clips": [ ... ],
   "audio": [ ... ],
@@ -57,6 +58,24 @@ High-level structure:
   "detail_answer": false
 }
 ```
+
+### Processing Mode
+
+| Field | Type | Default | Notes |
+| --- | --- | --- | --- |
+| `mode` | enum | `render` | `render` = current MoviePy render pipeline. `concat_normalize` = fast FFmpeg pipeline: normalize each clip to target FPS+resolution and concatenate. |
+
+#### `mode=concat_normalize` behavior
+
+- Uses FFmpeg directly (no MoviePy composition).
+- Purpose: fast video preparation pipeline (`normalize -> concat`).
+- Uses `output.fps` and `output.resolution` as normalization target.
+- Keeps aspect ratio and pads to target canvas (black bars if needed, no crop).
+- `output.format` in this mode: `mp4`, `mov`, `mkv`.
+- Preserves audio by normalizing it to AAC 48kHz stereo before concatenation.
+- If a clip has no audio stream, silent audio is generated for that clip to keep concat compatibility.
+- Ignores transitions/text/images and other composition effects.
+- Still returns the same response structure and supports `detail_answer`.
 
 ### Output Settings
 
@@ -77,7 +96,7 @@ Each entry represents a source video fragment.
 
 | Field | Type | Default | Description |
 | --- | --- | --- | --- |
-| `source` | string (path) | required | Source video path. Supports relative paths and absolute paths (`C:/...`, `/...`). |
+| `source` | string (path) | required | Source video path. Supports relative paths and absolute paths (`C:/...`, `/...`). In Docker, host absolute paths require mount + `MEDIA_PATH_MAPPINGS` remap. |
 | `start` | float | `0.0` | Cut-in timestamp in seconds. |
 | `end` | float | `null` | Cut-out timestamp. Ignored if before `start` or beyond video duration. |
 | `fit_mode` | enum | `contain` | `cover` (fill & crop) or `contain` (fit within frame). |
@@ -93,6 +112,20 @@ Each entry represents a source video fragment.
 If both `start` and `end` are omitted in a clip object, the clip is appended automatically to the timeline in request order:
 - first clip starts at `0.0`
 - each next clip starts where the previous visible clip ends
+
+Important:
+- `clips[].start` / `clips[].end` are source trim markers (what part of each source file to use), not absolute timeline coordinates.
+
+Absolute host paths in Docker:
+- A container cannot read host filesystem paths (`C:/...`) unless that host directory is mounted into the container.
+- Use compose vars:
+  - `EXTRA_MEDIA_HOST_PATH` (host folder to mount)
+  - `EXTRA_MEDIA_CONTAINER_PATH` (container mount point, e.g. `/external_media`)
+  - `MEDIA_PATH_MAPPINGS` for path remap (`SRC_PREFIX=DST_PREFIX`, multiple entries via `;`)
+- Example:
+  - `EXTRA_MEDIA_HOST_PATH=C:/Users/Rinzler/Desktop/Video-pipeline/Video-pipeline/tests/STEP_3_MEDIA`
+  - `EXTRA_MEDIA_CONTAINER_PATH=/external_media`
+  - `MEDIA_PATH_MAPPINGS=C:/Users/Rinzler/Desktop/Video-pipeline/Video-pipeline/tests/STEP_3_MEDIA=/external_media`
 
 ### Transition Settings
 

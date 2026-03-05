@@ -29,6 +29,11 @@ class BackgroundMode(str, Enum):
     COLOR = "color"
 
 
+class ProcessingMode(str, Enum):
+    RENDER = "render"
+    CONCAT_NORMALIZE = "concat_normalize"
+
+
 class TransitionDirection(str, Enum):
     LEFT = "left"
     RIGHT = "right"
@@ -188,6 +193,7 @@ class OutputInstruction(BaseModel):
 
 
 class RenderRequest(BaseModel):
+    mode: ProcessingMode = ProcessingMode.RENDER
     output: OutputInstruction = Field(default_factory=OutputInstruction)
     clips: List[ClipInstruction] = Field(default_factory=list)
     audio: List[AudioInstruction] = Field(default_factory=list)

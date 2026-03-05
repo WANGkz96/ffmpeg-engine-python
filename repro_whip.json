@@ -1,4 +1,6 @@
 {
+    "mode": "render",
+    "detail_answer": true,
     "clips": [
         {
             "source": "media/14705086_1080_1920_30fps.mp4",

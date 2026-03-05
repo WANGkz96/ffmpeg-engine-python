@@ -3,6 +3,8 @@ from __future__ import annotations
 
 import logging
 import os
+import subprocess
+import tempfile
 from pathlib import Path
 from typing import List, Optional, Tuple
 
@@ -121,6 +123,7 @@ from .models import (
     ClipInstruction,
     FitMode,
     ImageInstruction,
+    ProcessingMode,
     RenderRequest,
     RenderResult,
     TimelineClipModel,
@@ -146,10 +149,60 @@ class VideoEngine:
     def _is_windows_absolute(path_value: str) -> bool:
         return len(path_value) > 2 and path_value[1] == ":" and path_value[2] in {"\\", "/"}
 
+    @staticmethod
+    def _normalize_path_text(path_text: str) -> str:
+        return path_text.strip().replace("\\", "/")
+
+    def _map_absolute_path(self, source_text: str) -> Optional[Path]:
+        """
+        Map absolute host paths to container-visible paths.
+
+        MEDIA_PATH_MAPPINGS format:
+          SRC_PREFIX=DST_PREFIX;SRC2=DST2
+
+        Example:
+          C:/Users/Rinzler/Desktop/Video-pipeline/Video-pipeline/tests/STEP_3_MEDIA=/external_media
+        """
+        mappings_raw = os.getenv("MEDIA_PATH_MAPPINGS", "").strip()
+        if not mappings_raw:
+            return None
+
+        source_norm = self._normalize_path_text(source_text)
+        source_is_windows = self._is_windows_absolute(source_norm)
+        source_cmp = source_norm.lower() if source_is_windows else source_norm
+
+        for item in mappings_raw.split(";"):
+            entry = item.strip()
+            if not entry or "=" not in entry:
+                continue
+            src_prefix_raw, dst_prefix_raw = entry.split("=", 1)
+            src_prefix = self._normalize_path_text(src_prefix_raw)
+            dst_prefix = self._normalize_path_text(dst_prefix_raw)
+            if not src_prefix or not dst_prefix:
+                continue
+
+            prefix_is_windows = self._is_windows_absolute(src_prefix)
+            cmp_prefix = src_prefix.lower() if prefix_is_windows else src_prefix
+            cmp_prefix = cmp_prefix.rstrip("/")
+            if source_cmp != cmp_prefix and not source_cmp.startswith(f"{cmp_prefix}/"):
+                continue
+
+            relative_part = source_norm[len(src_prefix):].lstrip("/")
+            mapped = Path(dst_prefix)
+            if relative_part:
+                mapped = mapped / Path(relative_part)
+            return mapped
+        return None
+
     def _resolve_media_path(self, source: Path) -> Path:
         source_text = str(source).strip()
         path_obj = Path(source_text).expanduser()
-        if path_obj.is_absolute() or self._is_windows_absolute(source_text):
+        if path_obj.is_absolute():
+            return path_obj
+        if self._is_windows_absolute(source_text):
+            mapped = self._map_absolute_path(source_text)
+            if mapped is not None:
+                return mapped
             return path_obj
         return (Path.cwd() / path_obj).resolve()
 
@@ -549,6 +602,9 @@ class VideoEngine:
     # --- MAIN RENDER LOGIC ---
 
     def render(self, request: RenderRequest) -> RenderResult:
+        if request.mode == ProcessingMode.CONCAT_NORMALIZE:
+            return self._render_concat_normalize(request)
+
         template = resolve_template(request.output.template)
         target_resolution = request.output.resolution.size if request.output.resolution else template.resolution
         logger.info("Using target resolution %s", target_resolution)
@@ -951,16 +1007,292 @@ class VideoEngine:
             return None
         return mpe.CompositeAudioClip(tracks).set_duration(duration)
 
-    def _export(self, clip: mpe.VideoClip, request: RenderRequest) -> Path:
-        output_dir = self.workspace
-        output_dir.mkdir(parents=True, exist_ok=True)
+    def _resolve_output_path(self, request: RenderRequest) -> Path:
+        self.workspace.mkdir(parents=True, exist_ok=True)
         filename = Path(request.output.filename).name
         extension = request.output.format.lower().lstrip(".")
         if not filename:
             filename = "render"
         if Path(filename).suffix.lower() != f".{extension}":
             filename = f"{Path(filename).stem}.{extension}"
-        output_path = (output_dir / filename).resolve()
+        return (self.workspace / filename).resolve()
+
+    @staticmethod
+    def _build_fast_video_codec_args(bitrate: Optional[str]) -> List[str]:
+        use_gpu = os.getenv("FFMPEG_USE_GPU", "0").lower() in {"1", "true", "yes", "on"}
+        gpu_preset = os.getenv("FFMPEG_GPU_PRESET", "p4")
+        if use_gpu:
+            codec_args = ["-c:v", "h264_nvenc", "-preset", gpu_preset]
+            if bitrate:
+                codec_args += ["-b:v", bitrate]
+            else:
+                codec_args += ["-cq", "28"]
+        else:
+            codec_args = ["-c:v", "libx264", "-preset", "ultrafast"]
+            if bitrate:
+                codec_args += ["-b:v", bitrate]
+            else:
+                codec_args += ["-crf", "30"]
+        codec_args += ["-pix_fmt", "yuv420p"]
+        return codec_args
+
+    @staticmethod
+    def _build_fast_audio_codec_args() -> List[str]:
+        return ["-c:a", "aac", "-ar", "48000", "-ac", "2", "-b:a", "128k"]
+
+    @staticmethod
+    def _run_external_command(command: List[str], stage: str) -> None:
+        process = subprocess.run(
+            command,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            check=False,
+        )
+        if process.returncode == 0:
+            return
+        stderr_tail = (process.stderr or process.stdout or "").strip().splitlines()[-10:]
+        details = " | ".join(stderr_tail)
+        if details:
+            raise VideoEngineError(f"{stage} failed: {details}")
+        raise VideoEngineError(f"{stage} failed with exit code {process.returncode}")
+
+    @staticmethod
+    def _probe_duration_seconds(path: Path) -> float:
+        command = [
+            "ffprobe",
+            "-v",
+            "error",
+            "-show_entries",
+            "format=duration",
+            "-of",
+            "default=noprint_wrappers=1:nokey=1",
+            str(path),
+        ]
+        process = subprocess.run(
+            command,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            check=False,
+        )
+        if process.returncode != 0:
+            details = (process.stderr or process.stdout or "").strip()
+            raise VideoEngineError(f"ffprobe failed for {path}: {details}")
+        try:
+            return max(float((process.stdout or "").strip()), 0.0)
+        except ValueError as exc:
+            raise VideoEngineError(f"Unable to parse duration for {path}") from exc
+
+    @staticmethod
+    def _has_audio_stream(path: Path) -> bool:
+        command = [
+            "ffprobe",
+            "-v",
+            "error",
+            "-select_streams",
+            "a:0",
+            "-show_entries",
+            "stream=index",
+            "-of",
+            "default=noprint_wrappers=1:nokey=1",
+            str(path),
+        ]
+        process = subprocess.run(
+            command,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            check=False,
+        )
+        if process.returncode != 0:
+            details = (process.stderr or process.stdout or "").strip()
+            raise VideoEngineError(f"ffprobe audio stream check failed for {path}: {details}")
+        return bool((process.stdout or "").strip())
+
+    def _normalize_clip_for_concat(
+        self,
+        instruction: ClipInstruction,
+        source_path: Path,
+        output_path: Path,
+        target_resolution: tuple[int, int],
+        target_fps: int,
+        bitrate: Optional[str],
+    ) -> None:
+        target_w, target_h = target_resolution
+        start = max(instruction.start, 0.0)
+        end = instruction.end if instruction.end else None
+        if end is not None and end <= start:
+            end = None
+
+        vf_chain = (
+            f"fps={target_fps},"
+            f"scale={target_w}:{target_h}:force_original_aspect_ratio=decrease:force_divisible_by=2,"
+            f"pad={target_w}:{target_h}:(ow-iw)/2:(oh-ih)/2:color=black,"
+            "setsar=1,"
+            "format=yuv420p"
+        )
+        source_has_audio = self._has_audio_stream(source_path)
+        command = [
+            "ffmpeg",
+            "-y",
+            "-hide_banner",
+            "-loglevel",
+            "error",
+            "-i",
+            str(source_path),
+        ]
+        if not source_has_audio:
+            command += ["-f", "lavfi", "-i", "anullsrc=channel_layout=stereo:sample_rate=48000"]
+        if start > 0:
+            command += ["-ss", f"{start:.6f}"]
+        if end is not None:
+            duration = max(end - start, 0.0)
+            if duration > 0:
+                command += ["-t", f"{duration:.6f}"]
+        command += [
+            "-map",
+            "0:v:0",
+            "-map",
+            "0:a:0" if source_has_audio else "1:a:0",
+            "-dn",
+            "-map_metadata",
+            "-1",
+            "-vf",
+            vf_chain,
+            *self._build_fast_video_codec_args(bitrate),
+            *self._build_fast_audio_codec_args(),
+            "-movflags",
+            "+faststart",
+            "-shortest",
+            str(output_path),
+        ]
+        self._run_external_command(command, f"FFmpeg normalize clip {source_path.name}")
+
+    def _render_concat_normalize(self, request: RenderRequest) -> RenderResult:
+        template = resolve_template(request.output.template)
+        target_resolution = request.output.resolution.size if request.output.resolution else template.resolution
+        output_path = self._resolve_output_path(request)
+        extension = output_path.suffix.lower().lstrip(".")
+        if extension not in {"mp4", "mov", "mkv"}:
+            return RenderResult(
+                status="error",
+                duration=0.0,
+                output=Path(""),
+                message="concat_normalize supports output.format: mp4, mov, mkv",
+            )
+        if not request.clips:
+            return RenderResult(status="error", duration=0.0, output=Path(""), message="No clips provided in the request")
+
+        logger.info("Using concat_normalize mode with target resolution %s and fps %s", target_resolution, request.output.fps)
+        try:
+            timeline_entries: List[TimelineClipModel] = []
+            cursor = 0.0
+            with tempfile.TemporaryDirectory(prefix="ffmpeg_concat_", dir=str(self.workspace)) as temp_dir_name:
+                temp_dir = Path(temp_dir_name)
+                normalized_files: List[Path] = []
+                for index, instruction in enumerate(request.clips):
+                    source_path = self._resolve_media_path(instruction.source)
+                    if not source_path.exists():
+                        raise VideoEngineError(f"Clip source not found: {source_path}")
+                    normalized_path = temp_dir / f"norm_{index:04d}.mp4"
+                    self._normalize_clip_for_concat(
+                        instruction=instruction,
+                        source_path=source_path,
+                        output_path=normalized_path,
+                        target_resolution=target_resolution,
+                        target_fps=request.output.fps,
+                        bitrate=request.output.bitrate,
+                    )
+                    clip_duration = self._probe_duration_seconds(normalized_path)
+                    clip_start = cursor
+                    clip_end = clip_start + clip_duration
+                    timeline_entries.append(
+                        TimelineClipModel(
+                            index=index,
+                            source=source_path,
+                            start=round(max(clip_start, 0.0), 1),
+                            end=round(max(clip_end, 0.0), 1),
+                            auto_placed=self._is_auto_placed_instruction(instruction),
+                        )
+                    )
+                    cursor = clip_end
+                    normalized_files.append(normalized_path)
+
+                concat_file = temp_dir / "list.ffconcat"
+                with concat_file.open("w", encoding="utf-8") as handle:
+                    handle.write("ffconcat version 1.0\n")
+                    for normalized_file in normalized_files:
+                        escaped = normalized_file.resolve().as_posix().replace("'", r"'\''")
+                        handle.write(f"file '{escaped}'\n")
+
+                concat_copy_command = [
+                    "ffmpeg",
+                    "-y",
+                    "-hide_banner",
+                    "-loglevel",
+                    "error",
+                    "-f",
+                    "concat",
+                    "-safe",
+                    "0",
+                    "-i",
+                    str(concat_file),
+                    "-map",
+                    "0:v:0",
+                    "-map",
+                    "0:a:0",
+                    "-dn",
+                    "-map_metadata",
+                    "-1",
+                    "-c",
+                    "copy",
+                ]
+                if extension in {"mp4", "mov"}:
+                    concat_copy_command += ["-movflags", "+faststart"]
+                concat_copy_command.append(str(output_path))
+
+                try:
+                    self._run_external_command(concat_copy_command, "FFmpeg concat (stream copy)")
+                except VideoEngineError as exc:
+                    logger.warning("Concat stream copy failed; fallback to concat re-encode. Reason: %s", exc)
+                    concat_encode_command = [
+                        "ffmpeg",
+                        "-y",
+                        "-hide_banner",
+                        "-loglevel",
+                        "error",
+                        "-f",
+                        "concat",
+                        "-safe",
+                        "0",
+                        "-i",
+                        str(concat_file),
+                        "-map",
+                        "0:v:0",
+                        "-map",
+                        "0:a:0",
+                        "-dn",
+                        "-map_metadata",
+                        "-1",
+                        *self._build_fast_video_codec_args(request.output.bitrate),
+                        *self._build_fast_audio_codec_args(),
+                    ]
+                    if extension in {"mp4", "mov"}:
+                        concat_encode_command += ["-movflags", "+faststart"]
+                    concat_encode_command.append(str(output_path))
+                    self._run_external_command(concat_encode_command, "FFmpeg concat fallback encode")
+
+            final_duration = self._probe_duration_seconds(output_path)
+            timeline = TimelineDetailModel(clips=timeline_entries)
+            return RenderResult(status="ok", duration=final_duration, output=output_path, timeline=timeline)
+        except Exception as exc:
+            logger.exception("concat_normalize failed: %s", exc)
+            return RenderResult(status="error", duration=0.0, output=Path(""), message=str(exc))
+
+    def _export(self, clip: mpe.VideoClip, request: RenderRequest) -> Path:
+        output_path = self._resolve_output_path(request)
+        extension = request.output.format.lower().lstrip(".")
 
         use_gpu = os.getenv("FFMPEG_USE_GPU", "0").lower() in {"1", "true", "yes", "on"}
         gpu_preset = os.getenv("FFMPEG_GPU_PRESET", "p4")
