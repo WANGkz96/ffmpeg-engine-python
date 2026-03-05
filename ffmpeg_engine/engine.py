@@ -1183,15 +1183,43 @@ class VideoEngine:
         # Dynamic resize can drop duration metadata on some clip types.
         clip = clip.set_duration(clip_duration)
 
-        if anim.fade_in and anim.fade_in > 0:
-            clip = clip.fadein(anim.fade_in)
-        if anim.fade_out and anim.fade_out > 0:
-            clip = clip.fadeout(anim.fade_out)
+        clip = self._apply_text_opacity_fade(
+            clip=clip,
+            clip_duration=clip_duration,
+            fade_in=getattr(anim, "fade_in", 0.0),
+            fade_out=getattr(anim, "fade_out", 0.0),
+        )
 
         clip = clip.set_start(instruction.start).set_end(end_time)
         clip = clip.set_position(self._resolve_position(instruction.position, target_resolution, clip.size))
 
         return clip
+
+    @staticmethod
+    def _apply_text_opacity_fade(
+        clip: mpe.VideoClip,
+        clip_duration: float,
+        fade_in: float,
+        fade_out: float,
+    ) -> mpe.VideoClip:
+        fin = max(float(fade_in or 0.0), 0.0)
+        fout = max(float(fade_out or 0.0), 0.0)
+        if fin <= 0.0 and fout <= 0.0:
+            return clip
+
+        if clip.mask is None:
+            try:
+                clip = clip.add_mask()
+            except Exception:
+                full_mask = mpe.ColorClip(size=clip.size, color=1.0, ismask=True).set_duration(clip_duration)
+                clip = clip.set_mask(full_mask)
+
+        mask = clip.mask.set_duration(clip_duration)
+        if fin > 0.0:
+            mask = mask.fadein(min(fin, clip_duration))
+        if fout > 0.0:
+            mask = mask.fadeout(min(fout, clip_duration))
+        return clip.set_mask(mask)
 
     def _build_image_clip(self, instruction: ImageInstruction, duration: float, target_resolution: tuple[int, int]) -> Optional[mpe.VideoClip]:
         end_time = instruction.end if instruction.end else duration
