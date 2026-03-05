@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import logging
+import math
 import os
 import subprocess
 import tempfile
@@ -20,7 +21,7 @@ import moviepy.editor as mpe
 from moviepy.video.fx import all as vfx
 from moviepy.config import change_settings
 import numpy as np
-from PIL import ImageFilter
+from PIL import ImageChops, ImageDraw, ImageFilter, ImageFont
 
 change_settings({
     "IMAGEMAGICK_BINARY": "magick",
@@ -888,6 +889,252 @@ class VideoEngine:
                 overlays.append(clip)
         return overlays
 
+    @staticmethod
+    def _color_to_rgba(color, default: tuple[int, int, int, int]) -> tuple[int, int, int, int]:
+        if not color:
+            return default
+        alpha = int(max(min(getattr(color, "a", 1.0), 1.0), 0.0) * 255)
+        return (int(color.r), int(color.g), int(color.b), alpha)
+
+    def _resolve_pillow_font(self, instruction: TextInstruction) -> ImageFont.FreeTypeFont | ImageFont.ImageFont:
+        font_candidates: List[str] = []
+        bundled_fonts_dir = Path(__file__).resolve().parent / "fonts"
+        comic_regular = bundled_fonts_dir / "ComicNeue-Regular.ttf"
+        comic_bold = bundled_fonts_dir / "ComicNeue-Bold.ttf"
+        comic_ms_regular = bundled_fonts_dir / "ComicSansMS-Regular.ttf"
+        comic_ms_bold = bundled_fonts_dir / "ComicSansMS-Bold.ttf"
+
+        if getattr(instruction, "font_path", None):
+            font_candidates.append(str(instruction.font_path))
+
+        font_aliases = {
+            "DejaVu-Sans": "DejaVuSans.ttf",
+            "DejaVu Sans": "DejaVuSans.ttf",
+            "DejaVuSans": "DejaVuSans.ttf",
+            "DejaVu Sans Bold": "DejaVuSans-Bold.ttf",
+            "DejaVu-Sans-Bold": "DejaVuSans-Bold.ttf",
+            "DejaVu Sans Mono": "DejaVuSansMono.ttf",
+            "DejaVu-Sans-Mono": "DejaVuSansMono.ttf",
+            "DejaVu Sans Mono Bold": "DejaVuSansMono-Bold.ttf",
+            "DejaVu-Sans-Mono-Bold": "DejaVuSansMono-Bold.ttf",
+            "DejaVu Serif": "DejaVuSerif.ttf",
+            "DejaVu-Serif": "DejaVuSerif.ttf",
+            "DejaVu Serif Bold": "DejaVuSerif-Bold.ttf",
+            "DejaVu-Serif-Bold": "DejaVuSerif-Bold.ttf",
+            "Comic Sans": str(comic_ms_regular),
+            "Comic Sans MS": str(comic_ms_bold),
+            "ComicSansMS": str(comic_ms_bold),
+            "Comic Neue": str(comic_regular),
+            "Comic Neue Bold": str(comic_bold),
+        }
+        font_name = (instruction.font or "").strip()
+        if font_name:
+            font_candidates.append(font_name)
+            alias = font_aliases.get(font_name)
+            if alias:
+                font_candidates.append(alias)
+            lowered = font_name.lower()
+            if "comic sans" in lowered or lowered == "comicsans":
+                font_candidates.extend([str(comic_ms_bold), str(comic_ms_regular), str(comic_bold), str(comic_regular)])
+
+        for candidate in font_candidates:
+            if not candidate:
+                continue
+            try:
+                return ImageFont.truetype(candidate, instruction.font_size)
+            except Exception:
+                continue
+
+        try:
+            return ImageFont.truetype("DejaVuSans.ttf", instruction.font_size)
+        except Exception:
+            return ImageFont.load_default()
+
+    @staticmethod
+    def _measure_text(draw: ImageDraw.ImageDraw, text: str, font, stroke_width: int) -> tuple[int, int]:
+        bbox = draw.textbbox((0, 0), text or " ", font=font, stroke_width=stroke_width)
+        return max(bbox[2] - bbox[0], 1), max(bbox[3] - bbox[1], 1)
+
+    @staticmethod
+    def _measure_multiline_text(
+            draw: ImageDraw.ImageDraw,
+            text: str,
+            font,
+            stroke_width: int,
+            spacing: int,
+    ) -> tuple[int, int, tuple[int, int, int, int]]:
+        raw_bbox = draw.multiline_textbbox(
+            (0, 0),
+            text or " ",
+            font=font,
+            align="center",
+            spacing=spacing,
+            stroke_width=stroke_width,
+        )
+        bbox = (
+            int(math.floor(raw_bbox[0])),
+            int(math.floor(raw_bbox[1])),
+            int(math.ceil(raw_bbox[2])),
+            int(math.ceil(raw_bbox[3])),
+        )
+        width = max(bbox[2] - bbox[0], 1)
+        height = max(bbox[3] - bbox[1], 1)
+        return width, height, bbox
+
+    def _wrap_text_lines(self, text: str, font, max_width: int, stroke_width: int) -> List[str]:
+        probe = Image.new("RGBA", (1, 1), (0, 0, 0, 0))
+        draw = ImageDraw.Draw(probe)
+        if max_width <= 0:
+            return [text]
+
+        def split_long_token(token: str) -> List[str]:
+            parts: List[str] = []
+            current = ""
+            for ch in token:
+                candidate = f"{current}{ch}"
+                width, _ = self._measure_text(draw, candidate, font, stroke_width)
+                if width <= max_width or not current:
+                    current = candidate
+                else:
+                    parts.append(current)
+                    current = ch
+            if current:
+                parts.append(current)
+            return parts or [token]
+
+        wrapped: List[str] = []
+        paragraphs = text.splitlines() if text else [""]
+        for paragraph in paragraphs:
+            words = paragraph.split(" ")
+            if not words:
+                wrapped.append("")
+                continue
+            current_line = ""
+            for word in words:
+                token = word if current_line == "" else f"{current_line} {word}"
+                width, _ = self._measure_text(draw, token, font, stroke_width)
+                if width <= max_width:
+                    current_line = token
+                    continue
+                if current_line:
+                    wrapped.append(current_line)
+                token_parts = split_long_token(word)
+                current_line = token_parts.pop() if token_parts else ""
+                wrapped.extend(token_parts)
+            wrapped.append(current_line)
+        return wrapped or [text]
+
+    def _build_text_clip_with_pillow(
+        self, instruction: TextInstruction, target_resolution: tuple[int, int]
+    ) -> Optional[mpe.VideoClip]:
+        font = self._resolve_pillow_font(instruction)
+        stroke_width = max(int(instruction.stroke_width), 0)
+        max_text_width = instruction.max_width if instruction.max_width else int(target_resolution[0] * 0.9)
+        max_text_width = max(1, min(max_text_width, int(target_resolution[0] * 0.95)))
+
+        lines = self._wrap_text_lines(instruction.content, font, max_text_width, stroke_width)
+        probe = Image.new("RGBA", (1, 1), (0, 0, 0, 0))
+        probe_draw = ImageDraw.Draw(probe)
+        line_spacing = max(6, int(instruction.font_size * 0.22))
+        text_block = "\n".join(lines if lines else [" "])
+        text_w, text_h, text_bbox = self._measure_multiline_text(
+            probe_draw,
+            text_block,
+            font,
+            0,
+            line_spacing,
+        )
+
+        scale_from = getattr(instruction.animation, "scale_from", 1.0) if instruction.animation else 1.0
+        scale_to = getattr(instruction.animation, "scale_to", 1.0) if instruction.animation else 1.0
+        scale_guard = max(scale_from, scale_to, 1.0)
+        scale_margin = max(0, int(max(text_w, text_h) * (scale_guard - 1.0) * 0.55))
+
+        pad_x = max(16, int(instruction.font_size * 0.32) + stroke_width * 2 + scale_margin)
+        pad_y = max(14, int(instruction.font_size * 0.34) + stroke_width * 2 + scale_margin)
+        img_w = max(1, text_w + pad_x * 2)
+        img_h = max(1, text_h + pad_y * 2)
+
+        image = Image.new("RGBA", (img_w, img_h), (0, 0, 0, 0))
+        draw = ImageDraw.Draw(image)
+        text_color = self._color_to_rgba(instruction.color, (255, 255, 255, 255))
+        stroke_color = self._color_to_rgba(instruction.stroke_color, (0, 0, 0, 255))
+        text_origin = (
+            int((img_w - text_w) / 2 - text_bbox[0]),
+            int((img_h - text_h) / 2 - text_bbox[1]),
+        )
+
+        if instruction.glow:
+            glow_layer = Image.new("RGBA", (img_w, img_h), (0, 0, 0, 0))
+            glow_draw = ImageDraw.Draw(glow_layer)
+            glow_color = (
+                min(text_color[0] + 20, 255),
+                min(text_color[1] + 20, 255),
+                min(text_color[2] + 20, 255),
+                max(120, int(text_color[3] * 0.55)),
+            )
+            glow_draw.multiline_text(
+                text_origin,
+                text_block,
+                font=font,
+                fill=glow_color,
+                align="center",
+                spacing=line_spacing,
+                stroke_width=stroke_width + 2,
+                stroke_fill=glow_color,
+            )
+            blur_radius = max(2, int(instruction.font_size * 0.12))
+            image.alpha_composite(glow_layer.filter(ImageFilter.GaussianBlur(radius=blur_radius)))
+
+        if instruction.shadow:
+            shadow_alpha = max(90, int(text_color[3] * 0.6))
+            draw.multiline_text(
+                (text_origin[0] + 3, text_origin[1] + 3),
+                text_block,
+                font=font,
+                fill=(0, 0, 0, shadow_alpha),
+                align="center",
+                spacing=line_spacing,
+                stroke_width=0,
+            )
+
+        if stroke_width > 0 and stroke_color[3] > 0:
+            fill_mask = Image.new("L", (img_w, img_h), 0)
+            fill_draw = ImageDraw.Draw(fill_mask)
+            fill_draw.multiline_text(
+                text_origin,
+                text_block,
+                font=font,
+                fill=255,
+                align="center",
+                spacing=line_spacing,
+                stroke_width=0,
+            )
+            kernel_size = max(3, stroke_width * 2 + 1)
+            max_kernel = max(3, min(img_w, img_h))
+            if max_kernel % 2 == 0:
+                max_kernel -= 1
+            kernel_size = min(kernel_size, max_kernel)
+            if kernel_size % 2 == 0:
+                kernel_size = max(3, kernel_size - 1)
+            dilated_mask = fill_mask.filter(ImageFilter.MaxFilter(size=kernel_size))
+            outer_stroke_mask = ImageChops.subtract(dilated_mask, fill_mask)
+            stroke_layer = Image.new("RGBA", (img_w, img_h), stroke_color)
+            image.paste(stroke_layer, (0, 0), outer_stroke_mask)
+
+        draw.multiline_text(
+            text_origin,
+            text_block,
+            font=font,
+            fill=text_color,
+            align="center",
+            spacing=line_spacing,
+            stroke_width=0,
+        )
+
+        frame = np.array(image)
+        return mpe.ImageClip(frame, transparent=True)
+
     def _build_text_clip(self, instruction: TextInstruction, duration: float, target_resolution: tuple[int, int]) -> Optional[mpe.VideoClip]:
         end_time = instruction.end if instruction.end else duration
         if end_time <= instruction.start:
@@ -907,8 +1154,15 @@ class VideoEngine:
                 size=(instruction.max_width, None) if instruction.max_width else None,
             )
         except Exception as exc:
-            logger.warning("Text rendering failed (%s); skipping", exc)
-            return None
+            logger.warning("TextClip rendering failed (%s); trying Pillow fallback", exc)
+            try:
+                clip = self._build_text_clip_with_pillow(instruction, target_resolution)
+            except Exception as fallback_exc:
+                logger.warning("Pillow text rendering failed (%s); skipping", fallback_exc)
+                return None
+
+        clip_duration = max(end_time - instruction.start, 0.001)
+        clip = clip.set_duration(clip_duration)
 
         anim = instruction.animation
 
@@ -925,6 +1179,9 @@ class VideoEngine:
                 clip = clip.resize(scale_func)
             else:
                 clip = clip.resize(scale_to)
+
+        # Dynamic resize can drop duration metadata on some clip types.
+        clip = clip.set_duration(clip_duration)
 
         if anim.fade_in and anim.fade_in > 0:
             clip = clip.fadein(anim.fade_in)
