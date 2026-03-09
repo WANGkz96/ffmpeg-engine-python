@@ -22,9 +22,15 @@
             ]
         },
         {
-            "source": "media/5512609-hd_1080_1920_25fps.mp4",
+            "source": "media/Cinematic_tennis.mp4",
             "start": 0,
             "end": 3,
+            "fit_mode": "contain",
+            "background_mode": "blur",
+            "reframe": {
+                "mode": "center_zoom",
+                "zoom_percent": 2
+            },
             "transitions_after": [
                 {
                     "type": "motion_blur",

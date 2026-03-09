@@ -8,6 +8,18 @@ from typing import List, Literal, Optional
 
 from pydantic import BaseModel, Field, validator
 
+MAX_INTERNAL_ZOOM = 0.25
+
+
+def clamp_internal_zoom(value) -> float:
+    if value is None:
+        return 0.0
+    try:
+        numeric = float(value)
+    except (TypeError, ValueError):
+        return 0.0
+    return max(0.0, min(numeric, MAX_INTERNAL_ZOOM))
+
 
 class FitMode(str, Enum):
     """How to fit the source clip inside the template frame."""
@@ -39,6 +51,10 @@ class TransitionDirection(str, Enum):
     RIGHT = "right"
     TOP = "top"
     BOTTOM = "bottom"
+
+
+class ReframeMode(str, Enum):
+    CENTER_ZOOM = "center_zoom"
 
 
 class ColorModel(BaseModel):
@@ -92,6 +108,15 @@ class AdjustmentInstruction(BaseModel):
     hue: float = Field(0.0, ge=-1.0, le=1.0)
 
 
+class ReframeInstruction(BaseModel):
+    mode: ReframeMode = ReframeMode.CENTER_ZOOM
+    zoom_percent: float = Field(0.0, ge=0.0)
+
+    @validator("zoom_percent", pre=True, always=True)
+    def clamp_zoom_percent(cls, v):
+        return clamp_internal_zoom(v)
+
+
 class ClipInstruction(BaseModel):
     source: Path
     start: float = Field(0.0, ge=0.0)
@@ -99,6 +124,8 @@ class ClipInstruction(BaseModel):
     fit_mode: FitMode = FitMode.CONTAIN
     background_mode: BackgroundMode = BackgroundMode.BLUR
     background_color: ColorModel = Field(default_factory=lambda: ColorModel(r=16, g=16, b=16, a=1.0))
+    reframe: Optional[ReframeInstruction] = None
+    internal_zoom: float = 0.0
 
     # НОВОЕ: переходы, которые применяются к самому клипу "в начале"
     transitions_before: List[TransitionInstruction] = Field(default_factory=list)
@@ -111,6 +138,10 @@ class ClipInstruction(BaseModel):
     playback_rate: float = Field(1.0, gt=0.0)
     volume: float = Field(1.0, ge=0.0)
 
+    @validator("internal_zoom", pre=True, always=True)
+    def clamp_alias_internal_zoom(cls, v):
+        return clamp_internal_zoom(v)
+
     @validator("end")
     def validate_end(cls, v, values):
         start = values.get("start", 0.0)
@@ -118,6 +149,13 @@ class ClipInstruction(BaseModel):
             # ignore invalid end marker
             return None
         return v
+
+    @property
+    def effective_internal_zoom(self) -> float:
+        reframe_zoom = 0.0
+        if self.reframe and self.reframe.mode == ReframeMode.CENTER_ZOOM:
+            reframe_zoom = clamp_internal_zoom(self.reframe.zoom_percent)
+        return max(reframe_zoom, clamp_internal_zoom(self.internal_zoom))
 
 
 

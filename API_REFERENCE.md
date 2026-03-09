@@ -102,12 +102,23 @@ Each entry represents a source video fragment.
 | `fit_mode` | enum | `contain` | `cover` (fill & crop) or `contain` (fit within frame). |
 | `background_mode` | enum | `blur` | When `fit_mode=contain`: `blur` or `color`. |
 | `background_color` | RGBA | dark gray | Used for padding background or blur intensity alpha. |
+| `reframe` | object | `null` | Optional source-level reframing before `fit_mode`/background. Currently supports `{ "mode": "center_zoom", "zoom_percent": 0.08 }`. |
+| `internal_zoom` | float | `0.0` | Alias for `reframe.center_zoom`. `0.08` means about 8% center zoom-in. |
 | `transitions_before` | array | `[]` | Transitions applied to the *start* of this clip (Intro). |
 | `transitions_after` | array | `[]` | Transitions applied *after* this clip (Between clips or Outro). |
 | `chroma_key` | object | disabled | `{ "enabled": true, "color": {"r":0,"g":255,"b":0}, "threshold":0.1, "softness":0.0 }`. |
 | `adjustments` | object | zeros | Fine tuning for brightness, contrast, saturation, hue (`-1.0`..`1.0`). |
 | `playback_rate` | float | `1.0` | Speed multiplier. |
 | `volume` | float | `1.0` | Linear multiplier. |
+
+#### Optional Source Reframe
+
+- Applied to the source frame before `fit_mode` and background composition.
+- Supported now: `center_zoom` only.
+- `zoom_percent=0.08` means roughly 8% zoom-in from the clip center.
+- Omitted or `0` keeps current behavior unchanged.
+- Hard-clamped by the engine to `0.25` max.
+- Supported in both `mode=render` and `mode=concat_normalize`.
 
 If both `start` and `end` are omitted in a clip object, the clip is appended automatically to the timeline in request order:
 - first clip starts at `0.0`

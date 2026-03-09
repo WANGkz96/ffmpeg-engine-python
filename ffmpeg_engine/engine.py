@@ -732,6 +732,7 @@ class VideoEngine:
         if instruction.playback_rate != 1.0:
             clip = clip.fx(vfx.speedx, instruction.playback_rate)
 
+        clip = self._apply_internal_zoom(clip, instruction)
         clip = self._apply_fit_mode(clip, instruction, target_resolution)
         clip = self._apply_adjustments(clip, instruction.adjustments)
         if instruction.chroma_key.enabled:
@@ -742,6 +743,34 @@ class VideoEngine:
 
         clip = clip.set_fps(fps)
         return clip
+
+    @staticmethod
+    def _apply_internal_zoom(clip: mpe.VideoClip, instruction: ClipInstruction) -> mpe.VideoClip:
+        zoom_percent = max(float(getattr(instruction, "effective_internal_zoom", 0.0) or 0.0), 0.0)
+        if zoom_percent <= 0.0:
+            return clip
+
+        source_w, source_h = clip.size
+        zoom_factor = 1.0 + zoom_percent
+        zoomed = clip.resize(zoom_factor)
+        reframed = zoomed.crop(
+            width=source_w,
+            height=source_h,
+            x_center=zoomed.w / 2,
+            y_center=zoomed.h / 2,
+        )
+        return reframed.set_duration(clip.duration)
+
+    @staticmethod
+    def _build_center_zoom_filter(zoom_percent: float) -> Optional[str]:
+        zoom_value = max(float(zoom_percent or 0.0), 0.0)
+        if zoom_value <= 0.0:
+            return None
+
+        zoom_factor = 1.0 + zoom_value
+        crop_w = f"trunc(iw/{zoom_factor:.6f}/2)*2"
+        crop_h = f"trunc(ih/{zoom_factor:.6f}/2)*2"
+        return f"crop={crop_w}:{crop_h}:(iw-ow)/2:(ih-oh)/2"
 
     def _apply_fit_mode(self, clip: mpe.VideoClip, instruction: ClipInstruction, target_resolution: tuple[int, int]) -> mpe.VideoClip:
         target_w, target_h = target_resolution
@@ -1492,13 +1521,20 @@ class VideoEngine:
         if end is not None and end <= start:
             end = None
 
-        vf_chain = (
-            f"fps={target_fps},"
-            f"scale={target_w}:{target_h}:force_original_aspect_ratio=decrease:force_divisible_by=2,"
-            f"pad={target_w}:{target_h}:(ow-iw)/2:(oh-ih)/2:color=black,"
-            "setsar=1,"
-            "format=yuv420p"
+        vf_parts = []
+        zoom_filter = self._build_center_zoom_filter(instruction.effective_internal_zoom)
+        if zoom_filter:
+            vf_parts.append(zoom_filter)
+        vf_parts.extend(
+            [
+                f"fps={target_fps}",
+                f"scale={target_w}:{target_h}:force_original_aspect_ratio=decrease:force_divisible_by=2",
+                f"pad={target_w}:{target_h}:(ow-iw)/2:(oh-ih)/2:color=black",
+                "setsar=1",
+                "format=yuv420p",
+            ]
         )
+        vf_chain = ",".join(vf_parts)
         source_has_audio = self._has_audio_stream(source_path)
         command = [
             "ffmpeg",
