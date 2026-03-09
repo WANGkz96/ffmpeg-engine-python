@@ -1,13 +1,14 @@
 """Core rendering engine built on top of moviepy/ffmpeg."""
 from __future__ import annotations
 
+import gc
 import logging
 import math
 import os
 import subprocess
 import tempfile
 from pathlib import Path
-from typing import List, Optional, Tuple
+from typing import Iterable, List, Optional, Tuple
 
 # Monkey patch Image.ANTIALIAS for Pillow 10+
 from PIL import Image
@@ -145,6 +146,66 @@ class VideoEngine:
     def __init__(self, workspace: Path | str = "renders") -> None:
         self.workspace = Path(workspace)
         self.workspace.mkdir(parents=True, exist_ok=True)
+
+    @staticmethod
+    def _get_timeout_seconds(env_name: str, default: float) -> Optional[float]:
+        raw_value = os.getenv(env_name, "").strip()
+        if not raw_value:
+            return default
+        try:
+            timeout_seconds = float(raw_value)
+        except ValueError:
+            logger.warning("Invalid %s=%r; using default timeout %.1fs", env_name, raw_value, default)
+            return default
+        if timeout_seconds <= 0:
+            return None
+        return timeout_seconds
+
+    def _close_clip_resources(self, resources: Iterable[object]) -> None:
+        seen: set[int] = set()
+        for resource in resources:
+            self._close_clip_resource(resource, seen)
+
+    def _close_clip_resource(self, resource: object, seen: set[int]) -> None:
+        if resource is None:
+            return
+
+        resource_id = id(resource)
+        if resource_id in seen:
+            return
+        seen.add(resource_id)
+
+        clips = getattr(resource, "clips", None)
+        if clips:
+            for child in clips:
+                self._close_clip_resource(child, seen)
+
+        for attr_name in ("audio", "mask", "bg"):
+            child = getattr(resource, attr_name, None)
+            if child is not None:
+                self._close_clip_resource(child, seen)
+
+        reader = getattr(resource, "reader", None)
+        if reader is not None:
+            close_proc = getattr(reader, "close_proc", None)
+            if callable(close_proc):
+                try:
+                    close_proc()
+                except Exception:
+                    pass
+            close_reader = getattr(reader, "close", None)
+            if callable(close_reader):
+                try:
+                    close_reader()
+                except Exception:
+                    pass
+
+        close_resource = getattr(resource, "close", None)
+        if callable(close_resource):
+            try:
+                close_resource()
+            except Exception:
+                pass
 
     @staticmethod
     def _is_windows_absolute(path_value: str) -> bool:
@@ -612,6 +673,9 @@ class VideoEngine:
 
         clips = []
         final_clip = None
+        video = None
+        audio = None
+        overlay: List[mpe.VideoClip] = []
         timeline = TimelineDetailModel(clips=[])
         try:
             # Подготовка всех клипов (ресайз, эффекты, хромакей)
@@ -642,15 +706,8 @@ class VideoEngine:
             logger.exception("Rendering failed: %s", exc)
             return RenderResult(status="error", duration=0.0, output=Path(""), message=str(exc))
         finally:
-            for clip in clips:
-                # Аккуратно закрываем ресурсы
-                try:
-                    if clip: clip.close()
-                except: pass
-            if final_clip:
-                try:
-                    final_clip.close()
-                except: pass
+            self._close_clip_resources([final_clip, audio, video, *overlay, *clips])
+            gc.collect()
 
         return RenderResult(status="ok", duration=final_clip.duration, output=output_path, timeline=timeline)
 
@@ -1278,6 +1335,7 @@ class VideoEngine:
             end = instruction.end if instruction.end else clip.duration
             end = min(end, clip.duration)
             if end <= start:
+                clip.close()
                 continue
             clip = clip.subclip(start, end)
             clip = clip.volumex(instruction.volume)
@@ -1325,15 +1383,27 @@ class VideoEngine:
     def _build_fast_audio_codec_args() -> List[str]:
         return ["-c:a", "aac", "-ar", "48000", "-ac", "2", "-b:a", "128k"]
 
-    @staticmethod
-    def _run_external_command(command: List[str], stage: str) -> None:
-        process = subprocess.run(
-            command,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
-            check=False,
-        )
+    def _run_external_command(
+        self,
+        command: List[str],
+        stage: str,
+        timeout_env: str = "FFMPEG_COMMAND_TIMEOUT_SECONDS",
+        default_timeout_seconds: float = 900.0,
+    ) -> None:
+        timeout_seconds = self._get_timeout_seconds(timeout_env, default_timeout_seconds)
+        try:
+            process = subprocess.run(
+                command,
+                stdin=subprocess.DEVNULL,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                check=False,
+                timeout=timeout_seconds,
+            )
+        except subprocess.TimeoutExpired as exc:
+            timeout_label = f"{timeout_seconds:.1f}s" if timeout_seconds is not None else "disabled"
+            raise VideoEngineError(f"{stage} timed out after {timeout_label}") from exc
         if process.returncode == 0:
             return
         stderr_tail = (process.stderr or process.stdout or "").strip().splitlines()[-10:]
@@ -1342,8 +1412,7 @@ class VideoEngine:
             raise VideoEngineError(f"{stage} failed: {details}")
         raise VideoEngineError(f"{stage} failed with exit code {process.returncode}")
 
-    @staticmethod
-    def _probe_duration_seconds(path: Path) -> float:
+    def _probe_duration_seconds(self, path: Path) -> float:
         command = [
             "ffprobe",
             "-v",
@@ -1354,13 +1423,20 @@ class VideoEngine:
             "default=noprint_wrappers=1:nokey=1",
             str(path),
         ]
-        process = subprocess.run(
-            command,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
-            check=False,
-        )
+        timeout_seconds = self._get_timeout_seconds("FFPROBE_COMMAND_TIMEOUT_SECONDS", 60.0)
+        try:
+            process = subprocess.run(
+                command,
+                stdin=subprocess.DEVNULL,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                check=False,
+                timeout=timeout_seconds,
+            )
+        except subprocess.TimeoutExpired as exc:
+            timeout_label = f"{timeout_seconds:.1f}s" if timeout_seconds is not None else "disabled"
+            raise VideoEngineError(f"ffprobe timed out after {timeout_label} for {path}") from exc
         if process.returncode != 0:
             details = (process.stderr or process.stdout or "").strip()
             raise VideoEngineError(f"ffprobe failed for {path}: {details}")
@@ -1369,8 +1445,7 @@ class VideoEngine:
         except ValueError as exc:
             raise VideoEngineError(f"Unable to parse duration for {path}") from exc
 
-    @staticmethod
-    def _has_audio_stream(path: Path) -> bool:
+    def _has_audio_stream(self, path: Path) -> bool:
         command = [
             "ffprobe",
             "-v",
@@ -1383,13 +1458,20 @@ class VideoEngine:
             "default=noprint_wrappers=1:nokey=1",
             str(path),
         ]
-        process = subprocess.run(
-            command,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
-            check=False,
-        )
+        timeout_seconds = self._get_timeout_seconds("FFPROBE_COMMAND_TIMEOUT_SECONDS", 60.0)
+        try:
+            process = subprocess.run(
+                command,
+                stdin=subprocess.DEVNULL,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                check=False,
+                timeout=timeout_seconds,
+            )
+        except subprocess.TimeoutExpired as exc:
+            timeout_label = f"{timeout_seconds:.1f}s" if timeout_seconds is not None else "disabled"
+            raise VideoEngineError(f"ffprobe audio stream check timed out after {timeout_label} for {path}") from exc
         if process.returncode != 0:
             details = (process.stderr or process.stdout or "").strip()
             raise VideoEngineError(f"ffprobe audio stream check failed for {path}: {details}")
@@ -1421,6 +1503,7 @@ class VideoEngine:
         command = [
             "ffmpeg",
             "-y",
+            "-nostdin",
             "-hide_banner",
             "-loglevel",
             "error",
@@ -1514,6 +1597,7 @@ class VideoEngine:
                 concat_copy_command = [
                     "ffmpeg",
                     "-y",
+                    "-nostdin",
                     "-hide_banner",
                     "-loglevel",
                     "error",
@@ -1544,6 +1628,7 @@ class VideoEngine:
                     concat_encode_command = [
                         "ffmpeg",
                         "-y",
+                        "-nostdin",
                         "-hide_banner",
                         "-loglevel",
                         "error",

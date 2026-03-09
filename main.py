@@ -1,11 +1,13 @@
 """HTTP entrypoint exposing the video rendering API."""
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 from pathlib import Path
 
 from fastapi import Body, FastAPI, HTTPException, Query, Request, Response
+from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import FileResponse, JSONResponse
 from PIL import Image
 
@@ -21,6 +23,7 @@ logger = logging.getLogger(__name__)
 
 app = FastAPI(title="FFmpeg Engine", version="1.0.0")
 engine = VideoEngine(workspace=Path("renders"))
+render_lock = asyncio.Lock()
 
 
 def _resolve_download_target(filename: str) -> Path:
@@ -102,7 +105,8 @@ async def render_endpoint(
     payload: RenderRequest = Body(..., description="Render instructions"),
 ):
     logger.info("Incoming render request from %s", request.client)
-    result = engine.render(payload)
+    async with render_lock:
+        result = await run_in_threadpool(engine.render, payload)
     if result.status != "ok":
         raise HTTPException(status_code=400, detail=result.message or "Rendering failed")
 
