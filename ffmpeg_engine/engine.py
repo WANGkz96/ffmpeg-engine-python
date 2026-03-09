@@ -148,6 +148,19 @@ class VideoEngine:
         self.workspace.mkdir(parents=True, exist_ok=True)
 
     @staticmethod
+    def _get_thread_count(env_name: str, default: Optional[int] = None) -> int:
+        fallback = default if default is not None else (os.cpu_count() or 4)
+        raw_value = os.getenv(env_name, "").strip()
+        if not raw_value:
+            return max(int(fallback), 1)
+        try:
+            thread_count = int(raw_value)
+        except ValueError:
+            logger.warning("Invalid %s=%r; using fallback thread count %s", env_name, raw_value, fallback)
+            return max(int(fallback), 1)
+        return max(thread_count, 1)
+
+    @staticmethod
     def _get_timeout_seconds(env_name: str, default: float) -> Optional[float]:
         raw_value = os.getenv(env_name, "").strip()
         if not raw_value:
@@ -1389,10 +1402,15 @@ class VideoEngine:
             filename = f"{Path(filename).stem}.{extension}"
         return (self.workspace / filename).resolve()
 
-    @staticmethod
-    def _build_fast_video_codec_args(bitrate: Optional[str]) -> List[str]:
+    def _build_ffmpeg_runtime_args(self) -> List[str]:
+        thread_count = self._get_thread_count("FFMPEG_THREADS")
+        filter_thread_count = self._get_thread_count("FFMPEG_FILTER_THREADS", thread_count)
+        return ["-threads", str(thread_count), "-filter_threads", str(filter_thread_count)]
+
+    def _build_fast_video_codec_args(self, bitrate: Optional[str]) -> List[str]:
         use_gpu = os.getenv("FFMPEG_USE_GPU", "0").lower() in {"1", "true", "yes", "on"}
         gpu_preset = os.getenv("FFMPEG_GPU_PRESET", "p4")
+        thread_count = self._get_thread_count("FFMPEG_THREADS")
         if use_gpu:
             codec_args = ["-c:v", "h264_nvenc", "-preset", gpu_preset]
             if bitrate:
@@ -1405,6 +1423,7 @@ class VideoEngine:
                 codec_args += ["-b:v", bitrate]
             else:
                 codec_args += ["-crf", "30"]
+        codec_args += ["-threads", str(thread_count)]
         codec_args += ["-pix_fmt", "yuv420p"]
         return codec_args
 
@@ -1543,6 +1562,7 @@ class VideoEngine:
             "-hide_banner",
             "-loglevel",
             "error",
+            *self._build_ffmpeg_runtime_args(),
             "-i",
             str(source_path),
         ]
@@ -1637,6 +1657,7 @@ class VideoEngine:
                     "-hide_banner",
                     "-loglevel",
                     "error",
+                    *self._build_ffmpeg_runtime_args(),
                     "-f",
                     "concat",
                     "-safe",
@@ -1668,6 +1689,7 @@ class VideoEngine:
                         "-hide_banner",
                         "-loglevel",
                         "error",
+                        *self._build_ffmpeg_runtime_args(),
                         "-f",
                         "concat",
                         "-safe",
@@ -1699,6 +1721,8 @@ class VideoEngine:
     def _export(self, clip: mpe.VideoClip, request: RenderRequest) -> Path:
         output_path = self._resolve_output_path(request)
         extension = request.output.format.lower().lstrip(".")
+        thread_count = self._get_thread_count("FFMPEG_THREADS")
+        filter_thread_count = self._get_thread_count("FFMPEG_FILTER_THREADS", thread_count)
 
         use_gpu = os.getenv("FFMPEG_USE_GPU", "0").lower() in {"1", "true", "yes", "on"}
         gpu_preset = os.getenv("FFMPEG_GPU_PRESET", "p4")
@@ -1710,6 +1734,7 @@ class VideoEngine:
             codec = "libx264" if extension in {"mp4", "mov"} else None
             audio_codec = "aac" if extension in {"mp4", "mov"} else None
             ffmpeg_params = []
+        ffmpeg_params += ["-filter_threads", str(filter_thread_count)]
 
         clip.write_videofile(
             str(output_path),
@@ -1717,7 +1742,7 @@ class VideoEngine:
             codec=codec,
             audio_codec=audio_codec,
             bitrate=request.output.bitrate,
-            threads=4,
+            threads=thread_count,
             ffmpeg_params=ffmpeg_params,
         )
         return output_path

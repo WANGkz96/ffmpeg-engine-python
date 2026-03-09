@@ -66,6 +66,14 @@ The compose file mounts:
 - `${EXTRA_MEDIA_HOST_PATH:-./media}` -> `${EXTRA_MEDIA_CONTAINER_PATH:-/external_media}` (optional external source root for host absolute paths)
 - `./renders` -> `/app/renders` (render output)
 
+Performance knobs:
+- `RENDER_CONCURRENCY` limits how many render requests the API runs in parallel. Default in compose: `8`.
+- `FFMPEG_USE_GPU=1` enables NVENC for output encoding when available. This is already enabled in the current container.
+- `FFMPEG_THREADS` controls FFmpeg encoder/worker threads. Default in compose: `8`.
+- `FFMPEG_FILTER_THREADS` controls FFmpeg filter graph threads. Default in compose: `8`.
+- Requests targeting the same output filename are still serialized to avoid two renders writing to the same file at once.
+- For CPU-heavy MoviePy timelines (motion blur / whip pan / custom Python frame filters), the main bottleneck is often Python frame generation, so raising FFmpeg thread counts alone will not fully saturate all CPU cores.
+
 Absolute paths in Docker:
 - Containers cannot directly read host paths like `C:/...` unless that host folder is mounted.
 - Use `MEDIA_PATH_MAPPINGS` to remap host absolute prefixes to container prefixes.

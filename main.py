@@ -4,6 +4,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import os
 from pathlib import Path
 
 from fastapi import Body, FastAPI, HTTPException, Query, Request, Response
@@ -23,7 +24,23 @@ logger = logging.getLogger(__name__)
 
 app = FastAPI(title="FFmpeg Engine", version="1.0.0")
 engine = VideoEngine(workspace=Path("renders"))
-render_lock = asyncio.Lock()
+
+
+def _get_render_concurrency() -> int:
+    raw_value = os.getenv("RENDER_CONCURRENCY", "").strip()
+    if not raw_value:
+        return 8
+    try:
+        concurrency = int(raw_value)
+    except ValueError:
+        logger.warning("Invalid RENDER_CONCURRENCY=%r; falling back to 8", raw_value)
+        return 8
+    return max(concurrency, 1)
+
+
+render_semaphore = asyncio.Semaphore(_get_render_concurrency())
+output_lock_registry_guard = asyncio.Lock()
+output_locks: dict[str, asyncio.Lock] = {}
 
 
 def _resolve_download_target(filename: str) -> Path:
@@ -34,6 +51,26 @@ def _resolve_download_target(filename: str) -> Path:
     except ValueError as exc:
         raise HTTPException(status_code=400, detail="Invalid download path") from exc
     return target
+
+
+def _resolve_output_target_key(payload: RenderRequest) -> str:
+    filename = Path(payload.output.filename).name
+    extension = payload.output.format.lower().lstrip(".")
+    if not filename:
+        filename = "render"
+    if Path(filename).suffix.lower() != f".{extension}":
+        filename = f"{Path(filename).stem}.{extension}"
+    return str((engine.workspace.resolve() / filename).resolve())
+
+
+async def _get_output_lock(payload: RenderRequest) -> asyncio.Lock:
+    output_key = _resolve_output_target_key(payload)
+    async with output_lock_registry_guard:
+        output_lock = output_locks.get(output_key)
+        if output_lock is None:
+            output_lock = asyncio.Lock()
+            output_locks[output_key] = output_lock
+    return output_lock
 
 
 def _build_json_payload(request: Request, result: RenderResult, detail_answer: bool) -> dict:
@@ -104,9 +141,12 @@ async def render_endpoint(
     detail_answer: bool = Query(False, description="Return timeline placement details in JSON response"),
     payload: RenderRequest = Body(..., description="Render instructions"),
 ):
-    logger.info("Incoming render request from %s", request.client)
-    async with render_lock:
-        result = await run_in_threadpool(engine.render, payload)
+    output_key = _resolve_output_target_key(payload)
+    output_lock = await _get_output_lock(payload)
+    logger.info("Incoming render request from %s target=%s", request.client, output_key)
+    async with output_lock:
+        async with render_semaphore:
+            result = await run_in_threadpool(engine.render, payload)
     if result.status != "ok":
         raise HTTPException(status_code=400, detail=result.message or "Rendering failed")
 

@@ -9,6 +9,9 @@ services:
     environment:
       - FFMPEG_USE_GPU=${FFMPEG_USE_GPU:-0}
       - FFMPEG_GPU_PRESET=${FFMPEG_GPU_PRESET:-p4}
+      - RENDER_CONCURRENCY=${RENDER_CONCURRENCY:-8}
+      - FFMPEG_THREADS=${FFMPEG_THREADS:-8}
+      - FFMPEG_FILTER_THREADS=${FFMPEG_FILTER_THREADS:-8}
       - NVIDIA_VISIBLE_DEVICES=${NVIDIA_VISIBLE_DEVICES:-all}
       - NVIDIA_DRIVER_CAPABILITIES=${NVIDIA_DRIVER_CAPABILITIES:-compute,utility,video}
       # Host absolute path remapping for JSON source paths (optional).
