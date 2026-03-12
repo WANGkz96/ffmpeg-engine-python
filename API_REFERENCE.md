@@ -86,9 +86,19 @@ High-level structure:
 | `format` | string | `mp4` | Supported: `mp4`, `mov`, `webm`, `mkv`, etc. |
 | `filename` | string | current datetime (e.g. `2026-03-01_17-39-20`) | Final file name stored under `renders/`. |
 | `fps` | integer | `30` | Target frame rate. |
-| `bitrate` | string | `null` | Optional ffmpeg bitrate string, e.g., `"6M"`. |
+| `bitrate` | string | `null` | Optional ffmpeg bitrate string, e.g., `"6M"`. If omitted for `mp4`/`mov`, the engine falls back to quality-based H.264 encoding (`CRF/CQ`) instead of an arbitrary bitrate. |
 
 \* If `template` is explicitly set and `resolution` is omitted, template resolution is used.
+
+Default `mp4` / `mov` export profile:
+
+- Video: H.264 / AVC (`libx264` or `h264_nvenc`, depending on `FFMPEG_USE_GPU`)
+- Pixel format: `yuv420p`
+- MP4 tag: `avc1`
+- Container flag: `+faststart`
+- Audio: AAC-LC, 48 kHz, stereo, 128 kbps
+
+These defaults are chosen for broad compatibility with browsers, mobile devices, and common video platforms.
 
 ### Clip Instructions
 

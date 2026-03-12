@@ -174,6 +174,18 @@ class VideoEngine:
             return None
         return timeout_seconds
 
+    @staticmethod
+    def _get_positive_int_env(env_name: str, default: int) -> int:
+        raw_value = os.getenv(env_name, "").strip()
+        if not raw_value:
+            return max(int(default), 1)
+        try:
+            value = int(raw_value)
+        except ValueError:
+            logger.warning("Invalid %s=%r; using default value %s", env_name, raw_value, default)
+            return max(int(default), 1)
+        return max(value, 1)
+
     def _close_clip_resources(self, resources: Iterable[object]) -> None:
         seen: set[int] = set()
         for resource in resources:
@@ -1407,25 +1419,63 @@ class VideoEngine:
         filter_thread_count = self._get_thread_count("FFMPEG_FILTER_THREADS", thread_count)
         return ["-threads", str(thread_count), "-filter_threads", str(filter_thread_count)]
 
-    def _build_fast_video_codec_args(self, bitrate: Optional[str]) -> List[str]:
+    def _build_fast_video_codec_args(self, bitrate: Optional[str], extension: Optional[str] = None) -> List[str]:
         use_gpu = os.getenv("FFMPEG_USE_GPU", "0").lower() in {"1", "true", "yes", "on"}
         gpu_preset = os.getenv("FFMPEG_GPU_PRESET", "p4")
         thread_count = self._get_thread_count("FFMPEG_THREADS")
         if use_gpu:
-            codec_args = ["-c:v", "h264_nvenc", "-preset", gpu_preset]
+            codec_args = ["-c:v", "h264_nvenc", "-preset", gpu_preset, "-profile:v", "high"]
             if bitrate:
                 codec_args += ["-b:v", bitrate]
             else:
-                codec_args += ["-cq", "28"]
+                codec_args += ["-rc:v", "vbr", "-cq:v", os.getenv("FFMPEG_NVENC_CQ", "23")]
         else:
-            codec_args = ["-c:v", "libx264", "-preset", "ultrafast"]
+            x264_preset = os.getenv("FFMPEG_X264_PRESET_FAST", os.getenv("FFMPEG_X264_PRESET", "veryfast"))
+            codec_args = ["-c:v", "libx264", "-preset", x264_preset, "-profile:v", "high"]
             if bitrate:
                 codec_args += ["-b:v", bitrate]
             else:
-                codec_args += ["-crf", "30"]
+                codec_args += ["-crf", os.getenv("FFMPEG_X264_CRF", "23")]
         codec_args += ["-threads", str(thread_count)]
         codec_args += ["-pix_fmt", "yuv420p"]
+        if extension in {"mp4", "mov"}:
+            codec_args += ["-tag:v", "avc1"]
         return codec_args
+
+    def _build_moviepy_mp4_export_settings(
+        self,
+        bitrate: Optional[str],
+        filter_thread_count: int,
+    ) -> tuple[str, str, str, int, str, List[str]]:
+        use_gpu = os.getenv("FFMPEG_USE_GPU", "0").lower() in {"1", "true", "yes", "on"}
+        if use_gpu:
+            codec = "h264_nvenc"
+            preset = os.getenv("FFMPEG_GPU_PRESET", "p4")
+        else:
+            codec = "libx264"
+            preset = os.getenv("FFMPEG_X264_PRESET", "medium")
+
+        audio_sample_rate = self._get_positive_int_env("FFMPEG_AAC_SAMPLE_RATE", 48000)
+        audio_bitrate = os.getenv("FFMPEG_AAC_BITRATE", "").strip() or "128k"
+        ffmpeg_params = [
+            "-filter_threads",
+            str(filter_thread_count),
+            "-pix_fmt",
+            "yuv420p",
+            "-profile:v",
+            "high",
+            "-tag:v",
+            "avc1",
+            "-movflags",
+            "+faststart",
+        ]
+        if bitrate:
+            return codec, "aac", preset, audio_sample_rate, audio_bitrate, ffmpeg_params
+        if use_gpu:
+            ffmpeg_params += ["-rc:v", "vbr", "-cq:v", os.getenv("FFMPEG_NVENC_CQ", "23")]
+        else:
+            ffmpeg_params += ["-crf", os.getenv("FFMPEG_X264_CRF", "23")]
+        return codec, "aac", preset, audio_sample_rate, audio_bitrate, ffmpeg_params
 
     @staticmethod
     def _build_fast_audio_codec_args() -> List[str]:
@@ -1584,7 +1634,7 @@ class VideoEngine:
             "-1",
             "-vf",
             vf_chain,
-            *self._build_fast_video_codec_args(bitrate),
+            *self._build_fast_video_codec_args(bitrate, output_path.suffix.lower().lstrip(".")),
             *self._build_fast_audio_codec_args(),
             "-movflags",
             "+faststart",
@@ -1703,7 +1753,7 @@ class VideoEngine:
                         "-dn",
                         "-map_metadata",
                         "-1",
-                        *self._build_fast_video_codec_args(request.output.bitrate),
+                        *self._build_fast_video_codec_args(request.output.bitrate, extension),
                         *self._build_fast_audio_codec_args(),
                     ]
                     if extension in {"mp4", "mov"}:
@@ -1724,27 +1774,35 @@ class VideoEngine:
         thread_count = self._get_thread_count("FFMPEG_THREADS")
         filter_thread_count = self._get_thread_count("FFMPEG_FILTER_THREADS", thread_count)
 
-        use_gpu = os.getenv("FFMPEG_USE_GPU", "0").lower() in {"1", "true", "yes", "on"}
-        gpu_preset = os.getenv("FFMPEG_GPU_PRESET", "p4")
-        if use_gpu and extension in {"mp4", "mov"}:
-            codec = "h264_nvenc"
-            audio_codec = "aac"
-            ffmpeg_params = ["-preset", gpu_preset]
+        preset: Optional[str] = None
+        audio_fps: Optional[int] = None
+        audio_bitrate: Optional[str] = None
+        if extension in {"mp4", "mov"}:
+            codec, audio_codec, preset, audio_fps, audio_bitrate, ffmpeg_params = self._build_moviepy_mp4_export_settings(
+                request.output.bitrate,
+                filter_thread_count,
+            )
         else:
-            codec = "libx264" if extension in {"mp4", "mov"} else None
-            audio_codec = "aac" if extension in {"mp4", "mov"} else None
-            ffmpeg_params = []
-        ffmpeg_params += ["-filter_threads", str(filter_thread_count)]
+            codec = None
+            audio_codec = None
+            ffmpeg_params = ["-filter_threads", str(filter_thread_count)]
 
-        clip.write_videofile(
-            str(output_path),
-            fps=request.output.fps,
-            codec=codec,
-            audio_codec=audio_codec,
-            bitrate=request.output.bitrate,
-            threads=thread_count,
-            ffmpeg_params=ffmpeg_params,
-        )
+        write_kwargs = {
+            "fps": request.output.fps,
+            "codec": codec,
+            "audio_codec": audio_codec,
+            "bitrate": request.output.bitrate,
+            "threads": thread_count,
+            "ffmpeg_params": ffmpeg_params,
+        }
+        if preset:
+            write_kwargs["preset"] = preset
+        if audio_fps:
+            write_kwargs["audio_fps"] = audio_fps
+        if audio_bitrate:
+            write_kwargs["audio_bitrate"] = audio_bitrate
+
+        clip.write_videofile(str(output_path), **write_kwargs)
         return output_path
 
     @staticmethod
