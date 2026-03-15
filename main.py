@@ -9,6 +9,7 @@ from pathlib import Path
 
 from fastapi import Body, FastAPI, HTTPException, Query, Request, Response
 from fastapi.concurrency import run_in_threadpool
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from PIL import Image
 
@@ -26,6 +27,37 @@ app = FastAPI(title="FFmpeg Engine", version="1.0.0")
 engine = VideoEngine(workspace=Path("renders"))
 
 
+def _get_public_base_url() -> str | None:
+    raw_value = os.getenv("PUBLIC_BASE_URL", "").strip()
+    if not raw_value:
+        return None
+    return raw_value.rstrip("/")
+
+
+def _get_cors_allow_origins() -> list[str]:
+    raw_value = os.getenv("CORS_ALLOW_ORIGINS", "").strip()
+    if not raw_value:
+        return ["*"]
+    origins = [item.strip() for item in raw_value.split(",") if item.strip()]
+    return origins or ["*"]
+
+
+def _get_server_host() -> str:
+    return os.getenv("API_HOST", "").strip() or "0.0.0.0"
+
+
+def _get_server_port() -> int:
+    raw_value = os.getenv("API_PORT", "").strip()
+    if not raw_value:
+        return 8000
+    try:
+        port = int(raw_value)
+    except ValueError:
+        logger.warning("Invalid API_PORT=%r; falling back to 8000", raw_value)
+        return 8000
+    return max(port, 1)
+
+
 def _get_render_concurrency() -> int:
     raw_value = os.getenv("RENDER_CONCURRENCY", "").strip()
     if not raw_value:
@@ -41,6 +73,15 @@ def _get_render_concurrency() -> int:
 render_semaphore = asyncio.Semaphore(_get_render_concurrency())
 output_lock_registry_guard = asyncio.Lock()
 output_locks: dict[str, asyncio.Lock] = {}
+cors_allow_origins = _get_cors_allow_origins()
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=cors_allow_origins,
+    allow_credentials=cors_allow_origins != ["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 
 def _resolve_download_target(filename: str) -> Path:
@@ -73,6 +114,17 @@ async def _get_output_lock(payload: RenderRequest) -> asyncio.Lock:
     return output_lock
 
 
+def _build_public_url(request: Request, route_name: str, **path_params: str) -> str:
+    route_url = request.url_for(route_name, **path_params)
+    public_base_url = _get_public_base_url()
+    if not public_base_url:
+        return str(route_url)
+    path = route_url.path
+    if route_url.query:
+        return f"{public_base_url}{path}?{route_url.query}"
+    return f"{public_base_url}{path}"
+
+
 def _build_json_payload(request: Request, result: RenderResult, detail_answer: bool) -> dict:
     output_path = result.output.resolve()
     payload = {
@@ -81,7 +133,7 @@ def _build_json_payload(request: Request, result: RenderResult, detail_answer: b
         "output": {
             "filename": output_path.name,
             "absolute_path": str(output_path),
-            "download_url": str(request.url_for("download_render", filename=output_path.name)),
+            "download_url": _build_public_url(request, "download_render", filename=output_path.name),
         },
     }
 
@@ -121,7 +173,7 @@ async def list_downloads(request: Request) -> dict:
                 {
                     "filename": file_path.name,
                     "absolute_path": str(file_path.resolve()),
-                    "download_url": str(request.url_for("download_render", filename=file_path.name)),
+                    "download_url": _build_public_url(request, "download_render", filename=file_path.name),
                 }
             )
     return {"items": items}
@@ -192,3 +244,15 @@ async def templates() -> dict:
             for template in template_module.TEMPLATES.values()
         ]
     }
+
+
+if __name__ == "__main__":
+    import uvicorn
+
+    uvicorn.run(
+        "main:app",
+        host=_get_server_host(),
+        port=_get_server_port(),
+        proxy_headers=True,
+        forwarded_allow_ips="*",
+    )

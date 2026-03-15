@@ -43,6 +43,13 @@ Returns the list of rendered files with absolute paths and downloadable URLs.
 ### `GET /downloads/{filename}`
 Downloads a previously rendered file from the `renders/` workspace.
 
+Network note:
+
+- The API can be exposed to LAN / ZeroTier clients when the server listens on `0.0.0.0`.
+- Returned `download_url` values are built from the incoming request host by default.
+- Set `PUBLIC_BASE_URL` to force an externally reachable base URL in JSON responses, for example `http://192.168.1.50:8000` or `http://10.147.20.5:8000`.
+- Cross-origin browser access can be controlled through `CORS_ALLOW_ORIGINS` (`*` or comma-separated origins).
+
 ## Instruction Schema
 
 High-level structure:
@@ -246,6 +253,8 @@ Detailed response (`detail_answer=true`):
   }
 }
 ```
+
+`timeline.clips[].source` echoes the original source path from the request. It does not expose internal Docker remap paths such as `/external_media/...`.
 
 ## Error Handling
 

@@ -37,6 +37,8 @@ HTTP-based video rendering microservice powered by FastAPI, MoviePy, and FFmpeg.
    curl -O http://localhost:8000/downloads/<filename>.mp4
    ```
 
+For another device on your LAN or ZeroTier network, use the server IP instead of `localhost`, for example `http://192.168.1.50:8000` or `http://10.147.20.5:8000`.
+
 See [API_REFERENCE.md](API_REFERENCE.md) for the full payload specification and the `examples/` directory for ready-to-use request bodies.
 
 ## Run In Docker
@@ -81,4 +83,14 @@ Absolute paths in Docker:
   - `EXTRA_MEDIA_HOST_PATH=C:/Users/Rinzler/Desktop/Video-pipeline/Video-pipeline/tests/STEP_3_MEDIA`
   - `EXTRA_MEDIA_CONTAINER_PATH=/external_media`
   - `MEDIA_PATH_MAPPINGS=C:/Users/Rinzler/Desktop/Video-pipeline/Video-pipeline/tests/STEP_3_MEDIA=/external_media`
+
+## LAN / ZeroTier Access
+
+- The API already listens on all interfaces when started via Docker or `uvicorn main:app --host 0.0.0.0 --port 8000`.
+- You can also start it with `python main.py`; it now defaults to `API_HOST=0.0.0.0` and `API_PORT=8000`.
+- If clients inside the same machine call `/render`, set `PUBLIC_BASE_URL` so returned `download_url` points to a network-reachable address, for example:
+  - `PUBLIC_BASE_URL=http://192.168.1.50:8000`
+  - `PUBLIC_BASE_URL=http://10.147.20.5:8000`
+- Browser access from a different origin is controlled by `CORS_ALLOW_ORIGINS`. Default is `*`; you can replace it with a comma-separated allowlist.
+- On Windows, make sure inbound TCP traffic is allowed in the firewall for port `8000` (or your custom `HOST_PORT`).
 

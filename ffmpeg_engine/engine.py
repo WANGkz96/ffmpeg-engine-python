@@ -978,7 +978,7 @@ class VideoEngine:
             timeline.append(
                 TimelineClipModel(
                     index=index,
-                    source=self._resolve_media_path(instruction.source),
+                    source=instruction.source,
                     start=round(max(scheduled_start, 0.0), 1),
                     end=round(max(clip_end, 0.0), 1),
                     auto_placed=self._is_auto_placed_instruction(instruction),
@@ -1684,7 +1684,7 @@ class VideoEngine:
                     timeline_entries.append(
                         TimelineClipModel(
                             index=index,
-                            source=source_path,
+                            source=instruction.source,
                             start=round(max(clip_start, 0.0), 1),
                             end=round(max(clip_end, 0.0), 1),
                             auto_placed=self._is_auto_placed_instruction(instruction),
