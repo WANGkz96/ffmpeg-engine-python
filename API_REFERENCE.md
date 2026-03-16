@@ -33,6 +33,7 @@ Consumes a structured JSON payload (see below).
 - Default (`application/json`): returns status, duration, absolute output path, and `/downloads/...` URL.
 - Video MIME type (`video/mp4`, `video/webm`, ...): streams the produced file if its extension matches the MIME type.
 - Query flag `detail_answer=true` (or body field `detail_answer: true`) adds timeline details per clip (`start`/`end` rounded to tenths).
+- Concurrency is controlled per mode on the server side. Typical production setup: `mode=render` runs in a limited worker pool, while `mode=concat_normalize` is processed through a smaller queue.
 
 ### `POST /render/raw`
 Accepts arbitrary JSON and validates it against the schema at runtime. Useful when the caller cannot send typed JSON bodies (e.g., curl from shell).

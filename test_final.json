@@ -1,0 +1,1605 @@
+{
+    "mode": "render",
+    "audio": [
+      {
+        "start": 0,
+        "source": "/external_media/20260316_012903_362/final_assets/20260316_012903_362_speech_prepared.wav",
+        "volume": 1
+      },
+      {
+        "start": 0,
+        "source": "/external_media/20260316_012903_362/final_assets/music_prepared.wav",
+        "volume": 0.2,
+        "fade_in": 0.25,
+        "fade_out": 2
+      }
+    ],
+    "clips": [
+      {
+        "end": 20.34,
+        "start": 13.5,
+        "source": "/external_media/20260316_012903_362/original/Thomas_Midgley_The_Most_Harmful_Inventor_in_History_Science_pills [hSR5AafF7Cg].mp4",
+        "reframe": {
+          "mode": "center_zoom",
+          "zoom_percent": 0.25
+        },
+        "fit_mode": "contain",
+        "background_mode": "blur"
+      },
+      {
+        "end": 96.159,
+        "start": 89.1,
+        "source": "/external_media/20260316_012903_362/original/Thomas_Midgley_Jr_-_Air_Destroyer_The_man_who_caused_the_most_environmental_damage_in_History [f2mQMkdEwss].mp4",
+        "reframe": {
+          "mode": "center_zoom",
+          "zoom_percent": 0.2
+        },
+        "fit_mode": "contain",
+        "background_mode": "blur",
+        "transitions_after": [
+          {
+            "type": "crossfade",
+            "duration": 0.459
+          }
+        ]
+      },
+      {
+        "end": 128.939,
+        "start": 122.2,
+        "source": "/external_media/20260316_012903_362/original/The_Man_Who_Almost_Destroyed_the_Planet [eOPg7Jo8UgM].mp4",
+        "fit_mode": "contain",
+        "background_mode": "blur",
+        "transitions_after": [
+          {
+            "type": "crossfade",
+            "duration": 0.679
+          }
+        ]
+      },
+      {
+        "end": 23.93,
+        "start": 16.6,
+        "source": "/external_media/20260316_012903_362/original/What_is_the_Unnamed_Special_Ingredient_in_Ethyl_Gasoline_Lead_1950s [mkTxI0o9Hfw].mp4",
+        "reframe": {
+          "mode": "center_zoom",
+          "zoom_percent": 0.25
+        },
+        "fit_mode": "contain",
+        "background_mode": "blur",
+        "transitions_after": [
+          {
+            "type": "crossfade",
+            "duration": 0.67
+          }
+        ]
+      },
+      {
+        "end": 58.264,
+        "start": 50.5,
+        "source": "/external_media/20260316_012903_362/original/Thomas_Midgley_The_Most_Harmful_Inventor_in_History_Science_pills [hSR5AafF7Cg].mp4",
+        "reframe": {
+          "mode": "center_zoom",
+          "zoom_percent": 0.25
+        },
+        "fit_mode": "contain",
+        "background_mode": "blur",
+        "transitions_after": [
+          {
+            "fade": true,
+            "glow": false,
+            "type": "whip_pan",
+            "duration": 0.624,
+            "direction": "right",
+            "blur_strength": 314
+          }
+        ]
+      },
+      {
+        "end": 18.844,
+        "start": 11.6,
+        "source": "/external_media/20260316_012903_362/original/Ozone_hole_animation_by_NASA [p4TOCARzLPw].mp4",
+        "reframe": {
+          "mode": "center_zoom",
+          "zoom_percent": 0.25
+        },
+        "fit_mode": "contain",
+        "background_mode": "blur",
+        "transitions_after": [
+          {
+            "fade": true,
+            "glow": false,
+            "type": "whip_pan",
+            "duration": 0.604,
+            "direction": "right",
+            "blur_strength": 194
+          }
+        ]
+      },
+      {
+        "end": 143.72,
+        "start": 137.2,
+        "source": "/external_media/20260316_012903_362/original/Thomas_Midgley_Jr. [aSxaLmrabTs].mp4",
+        "fit_mode": "contain",
+        "background_mode": "blur"
+      },
+      {
+        "end": 8.03,
+        "start": 0,
+        "source": "/external_media/20260316_012903_362/original/Ozone_hole_animation_by_NASA [p4TOCARzLPw].mp4",
+        "fit_mode": "contain",
+        "background_mode": "blur"
+      },
+      {
+        "end": 339.08,
+        "start": 330.2,
+        "source": "/external_media/20260316_012903_362/original/Thomas_Midgley_Jr. [aSxaLmrabTs].mp4",
+        "fit_mode": "contain",
+        "background_mode": "blur"
+      },
+      {
+        "end": 53.74,
+        "start": 47.2,
+        "source": "/external_media/20260316_012903_362/original/Thomas_Midgley_Jr. [aSxaLmrabTs].mp4",
+        "fit_mode": "contain",
+        "background_mode": "blur",
+        "transitions_after": [
+          {
+            "fade": false,
+            "glow": false,
+            "type": "motion_blur",
+            "duration": 0.561,
+            "direction": "right",
+            "blur_strength": 227
+          }
+        ]
+      },
+      {
+        "end": 29.79,
+        "start": 0,
+        "source": "/external_media/20260316_012903_362/final_assets/20260316_012903_362_last_clip_fade.mp4",
+        "fit_mode": "contain",
+        "background_mode": "blur"
+      }
+    ],
+    "texts": [
+      {
+        "end": 2.72,
+        "font": "DejaVu-Sans",
+        "glow": false,
+        "color": {
+          "a": 1,
+          "b": 0,
+          "g": 0,
+          "r": 0
+        },
+        "start": 0.21,
+        "shadow": true,
+        "content": "Слушайте, если бы существовала премия",
+        "position": "bottom",
+        "animation": {
+          "fade_in": 0.08,
+          "fade_out": 0.08
+        },
+        "font_size": 56,
+        "max_width": 972,
+        "stroke_color": {
+          "a": 0.9,
+          "b": 255,
+          "g": 255,
+          "r": 255
+        },
+        "stroke_width": 2
+      },
+      {
+        "end": 4.32,
+        "font": "DejaVu-Sans",
+        "glow": false,
+        "color": {
+          "a": 1,
+          "b": 0,
+          "g": 0,
+          "r": 0
+        },
+        "start": 2.72,
+        "shadow": true,
+        "content": "за самый разрушительный вклад в",
+        "position": "bottom",
+        "animation": {
+          "fade_in": 0.08,
+          "fade_out": 0.08
+        },
+        "font_size": 56,
+        "max_width": 972,
+        "stroke_color": {
+          "a": 0.9,
+          "b": 255,
+          "g": 255,
+          "r": 255
+        },
+        "stroke_width": 2
+      },
+      {
+        "end": 6.44,
+        "font": "DejaVu-Sans",
+        "glow": false,
+        "color": {
+          "a": 1,
+          "b": 0,
+          "g": 0,
+          "r": 0
+        },
+        "start": 4.32,
+        "shadow": true,
+        "content": "историю человечества, её бы точно",
+        "position": "bottom",
+        "animation": {
+          "fade_in": 0.08,
+          "fade_out": 0.08
+        },
+        "font_size": 56,
+        "max_width": 972,
+        "stroke_color": {
+          "a": 0.9,
+          "b": 255,
+          "g": 255,
+          "r": 255
+        },
+        "stroke_width": 2
+      },
+      {
+        "end": 7.508,
+        "font": "DejaVu-Sans",
+        "glow": false,
+        "color": {
+          "a": 1,
+          "b": 0,
+          "g": 0,
+          "r": 0
+        },
+        "start": 6.54,
+        "shadow": true,
+        "content": "забрал один человек.",
+        "position": "bottom",
+        "animation": {
+          "fade_in": 0.08,
+          "fade_out": 0.08
+        },
+        "font_size": 56,
+        "max_width": 972,
+        "stroke_color": {
+          "a": 0.9,
+          "b": 255,
+          "g": 255,
+          "r": 255
+        },
+        "stroke_width": 2
+      },
+      {
+        "end": 9.18,
+        "font": "DejaVu-Sans",
+        "glow": false,
+        "color": {
+          "a": 1,
+          "b": 0,
+          "g": 0,
+          "r": 0
+        },
+        "start": 8.06,
+        "shadow": true,
+        "content": "И нет, это не какой-нибудь",
+        "position": "bottom",
+        "animation": {
+          "fade_in": 0.08,
+          "fade_out": 0.08
+        },
+        "font_size": 56,
+        "max_width": 972,
+        "stroke_color": {
+          "a": 0.9,
+          "b": 255,
+          "g": 255,
+          "r": 255
+        },
+        "stroke_width": 2
+      },
+      {
+        "end": 11.62,
+        "font": "DejaVu-Sans",
+        "glow": false,
+        "color": {
+          "a": 1,
+          "b": 0,
+          "g": 0,
+          "r": 0
+        },
+        "start": 9.18,
+        "shadow": true,
+        "content": "безумный диктатор. Это обычный инженер",
+        "position": "bottom",
+        "animation": {
+          "fade_in": 0.08,
+          "fade_out": 0.08
+        },
+        "font_size": 56,
+        "max_width": 972,
+        "stroke_color": {
+          "a": 0.9,
+          "b": 255,
+          "g": 255,
+          "r": 255
+        },
+        "stroke_width": 2
+      },
+      {
+        "end": 12.967,
+        "font": "DejaVu-Sans",
+        "glow": false,
+        "color": {
+          "a": 1,
+          "b": 0,
+          "g": 0,
+          "r": 0
+        },
+        "start": 11.62,
+        "shadow": true,
+        "content": "по имени Томас Миджли.",
+        "position": "bottom",
+        "animation": {
+          "fade_in": 0.08,
+          "fade_out": 0.08
+        },
+        "font_size": 56,
+        "max_width": 972,
+        "stroke_color": {
+          "a": 0.9,
+          "b": 255,
+          "g": 255,
+          "r": 255
+        },
+        "stroke_width": 2
+      },
+      {
+        "end": 15.14,
+        "font": "DejaVu-Sans",
+        "glow": false,
+        "color": {
+          "a": 1,
+          "b": 0,
+          "g": 0,
+          "r": 0
+        },
+        "start": 13.44,
+        "shadow": true,
+        "content": "Этот парень умудрился нанести планете",
+        "position": "bottom",
+        "animation": {
+          "fade_in": 0.08,
+          "fade_out": 0.08
+        },
+        "font_size": 56,
+        "max_width": 972,
+        "stroke_color": {
+          "a": 0.9,
+          "b": 255,
+          "g": 255,
+          "r": 255
+        },
+        "stroke_width": 2
+      },
+      {
+        "end": 16.84,
+        "font": "DejaVu-Sans",
+        "glow": false,
+        "color": {
+          "a": 1,
+          "b": 0,
+          "g": 0,
+          "r": 0
+        },
+        "start": 15.24,
+        "shadow": true,
+        "content": "больше вреда, чем любой другой",
+        "position": "bottom",
+        "animation": {
+          "fade_in": 0.08,
+          "fade_out": 0.08
+        },
+        "font_size": 56,
+        "max_width": 972,
+        "stroke_color": {
+          "a": 0.9,
+          "b": 255,
+          "g": 255,
+          "r": 255
+        },
+        "stroke_width": 2
+      },
+      {
+        "end": 17.8,
+        "font": "DejaVu-Sans",
+        "glow": false,
+        "color": {
+          "a": 1,
+          "b": 0,
+          "g": 0,
+          "r": 0
+        },
+        "start": 16.84,
+        "shadow": true,
+        "content": "живой организм в истории.",
+        "position": "bottom",
+        "animation": {
+          "fade_in": 0.08,
+          "fade_out": 0.08
+        },
+        "font_size": 56,
+        "max_width": 972,
+        "stroke_color": {
+          "a": 0.9,
+          "b": 255,
+          "g": 255,
+          "r": 255
+        },
+        "stroke_width": 2
+      },
+      {
+        "end": 20.52,
+        "font": "DejaVu-Sans",
+        "glow": false,
+        "color": {
+          "a": 1,
+          "b": 0,
+          "g": 0,
+          "r": 0
+        },
+        "start": 18.66,
+        "shadow": true,
+        "content": "Как? Он просто хотел сделать",
+        "position": "bottom",
+        "animation": {
+          "fade_in": 0.08,
+          "fade_out": 0.08
+        },
+        "font_size": 56,
+        "max_width": 972,
+        "stroke_color": {
+          "a": 0.9,
+          "b": 255,
+          "g": 255,
+          "r": 255
+        },
+        "stroke_width": 2
+      },
+      {
+        "end": 22.66,
+        "font": "DejaVu-Sans",
+        "glow": false,
+        "color": {
+          "a": 1,
+          "b": 0,
+          "g": 0,
+          "r": 0
+        },
+        "start": 20.52,
+        "shadow": true,
+        "content": "мир «лучше». Сначала он придумал",
+        "position": "bottom",
+        "animation": {
+          "fade_in": 0.08,
+          "fade_out": 0.08
+        },
+        "font_size": 56,
+        "max_width": 972,
+        "stroke_color": {
+          "a": 0.9,
+          "b": 255,
+          "g": 255,
+          "r": 255
+        },
+        "stroke_width": 2
+      },
+      {
+        "end": 24.2,
+        "font": "DejaVu-Sans",
+        "glow": false,
+        "color": {
+          "a": 1,
+          "b": 0,
+          "g": 0,
+          "r": 0
+        },
+        "start": 22.96,
+        "shadow": true,
+        "content": "добавлять свинец в бензин.",
+        "position": "bottom",
+        "animation": {
+          "fade_in": 0.08,
+          "fade_out": 0.08
+        },
+        "font_size": 56,
+        "max_width": 972,
+        "stroke_color": {
+          "a": 0.9,
+          "b": 255,
+          "g": 255,
+          "r": 255
+        },
+        "stroke_width": 2
+      },
+      {
+        "end": 26.565,
+        "font": "DejaVu-Sans",
+        "glow": false,
+        "color": {
+          "a": 1,
+          "b": 0,
+          "g": 0,
+          "r": 0
+        },
+        "start": 24.66,
+        "shadow": true,
+        "content": "Зачем? Чтобы двигатели не стучали.",
+        "position": "bottom",
+        "animation": {
+          "fade_in": 0.08,
+          "fade_out": 0.08
+        },
+        "font_size": 56,
+        "max_width": 972,
+        "stroke_color": {
+          "a": 0.9,
+          "b": 255,
+          "g": 255,
+          "r": 255
+        },
+        "stroke_width": 2
+      },
+      {
+        "end": 28.02,
+        "font": "DejaVu-Sans",
+        "glow": false,
+        "color": {
+          "a": 1,
+          "b": 0,
+          "g": 0,
+          "r": 0
+        },
+        "start": 26.94,
+        "shadow": true,
+        "content": "И плевать, что свинец —",
+        "position": "bottom",
+        "animation": {
+          "fade_in": 0.08,
+          "fade_out": 0.08
+        },
+        "font_size": 56,
+        "max_width": 972,
+        "stroke_color": {
+          "a": 0.9,
+          "b": 255,
+          "g": 255,
+          "r": 255
+        },
+        "stroke_width": 2
+      },
+      {
+        "end": 29.38,
+        "font": "DejaVu-Sans",
+        "glow": false,
+        "color": {
+          "a": 1,
+          "b": 0,
+          "g": 0,
+          "r": 0
+        },
+        "start": 28.02,
+        "shadow": true,
+        "content": "это тяжелейший нейротоксин.",
+        "position": "bottom",
+        "animation": {
+          "fade_in": 0.08,
+          "fade_out": 0.08
+        },
+        "font_size": 56,
+        "max_width": 972,
+        "stroke_color": {
+          "a": 0.9,
+          "b": 255,
+          "g": 255,
+          "r": 255
+        },
+        "stroke_width": 2
+      },
+      {
+        "end": 32.4,
+        "font": "DejaVu-Sans",
+        "glow": false,
+        "color": {
+          "a": 1,
+          "b": 0,
+          "g": 0,
+          "r": 0
+        },
+        "start": 30.02,
+        "shadow": true,
+        "content": "Десятилетиями люди буквально вдыхали яд,",
+        "position": "bottom",
+        "animation": {
+          "fade_in": 0.08,
+          "fade_out": 0.08
+        },
+        "font_size": 56,
+        "max_width": 972,
+        "stroke_color": {
+          "a": 0.9,
+          "b": 255,
+          "g": 255,
+          "r": 255
+        },
+        "stroke_width": 2
+      },
+      {
+        "end": 34.04,
+        "font": "DejaVu-Sans",
+        "glow": false,
+        "color": {
+          "a": 1,
+          "b": 0,
+          "g": 0,
+          "r": 0
+        },
+        "start": 32.8,
+        "shadow": true,
+        "content": "что привело к снижению IQ",
+        "position": "bottom",
+        "animation": {
+          "fade_in": 0.08,
+          "fade_out": 0.08
+        },
+        "font_size": 56,
+        "max_width": 972,
+        "stroke_color": {
+          "a": 0.9,
+          "b": 255,
+          "g": 255,
+          "r": 255
+        },
+        "stroke_width": 2
+      },
+      {
+        "end": 36.16,
+        "font": "DejaVu-Sans",
+        "glow": false,
+        "color": {
+          "a": 1,
+          "b": 0,
+          "g": 0,
+          "r": 0
+        },
+        "start": 34.04,
+        "shadow": true,
+        "content": "у целых поколений и всплеску",
+        "position": "bottom",
+        "animation": {
+          "fade_in": 0.08,
+          "fade_out": 0.08
+        },
+        "font_size": 56,
+        "max_width": 972,
+        "stroke_color": {
+          "a": 0.9,
+          "b": 255,
+          "g": 255,
+          "r": 255
+        },
+        "stroke_width": 2
+      },
+      {
+        "end": 37.4,
+        "font": "DejaVu-Sans",
+        "glow": false,
+        "color": {
+          "a": 1,
+          "b": 0,
+          "g": 0,
+          "r": 0
+        },
+        "start": 36.24,
+        "shadow": true,
+        "content": "преступности по всему миру.",
+        "position": "bottom",
+        "animation": {
+          "fade_in": 0.08,
+          "fade_out": 0.08
+        },
+        "font_size": 56,
+        "max_width": 972,
+        "stroke_color": {
+          "a": 0.9,
+          "b": 255,
+          "g": 255,
+          "r": 255
+        },
+        "stroke_width": 2
+      },
+      {
+        "end": 39.14,
+        "font": "DejaVu-Sans",
+        "glow": false,
+        "color": {
+          "a": 1,
+          "b": 0,
+          "g": 0,
+          "r": 0
+        },
+        "start": 37.98,
+        "shadow": true,
+        "content": "Но Миджли не остановился.",
+        "position": "bottom",
+        "animation": {
+          "fade_in": 0.08,
+          "fade_out": 0.08
+        },
+        "font_size": 56,
+        "max_width": 972,
+        "stroke_color": {
+          "a": 0.9,
+          "b": 255,
+          "g": 255,
+          "r": 255
+        },
+        "stroke_width": 2
+      },
+      {
+        "end": 41.42,
+        "font": "DejaVu-Sans",
+        "glow": false,
+        "color": {
+          "a": 1,
+          "b": 0,
+          "g": 0,
+          "r": 0
+        },
+        "start": 39.74,
+        "shadow": true,
+        "content": "Его следующим «хитом» стали фреоны",
+        "position": "bottom",
+        "animation": {
+          "fade_in": 0.08,
+          "fade_out": 0.08
+        },
+        "font_size": 56,
+        "max_width": 972,
+        "stroke_color": {
+          "a": 0.9,
+          "b": 255,
+          "g": 255,
+          "r": 255
+        },
+        "stroke_width": 2
+      },
+      {
+        "end": 43.47,
+        "font": "DejaVu-Sans",
+        "glow": false,
+        "color": {
+          "a": 1,
+          "b": 0,
+          "g": 0,
+          "r": 0
+        },
+        "start": 41.42,
+        "shadow": true,
+        "content": "для холодильников. Те самые газы,",
+        "position": "bottom",
+        "animation": {
+          "fade_in": 0.08,
+          "fade_out": 0.08
+        },
+        "font_size": 56,
+        "max_width": 972,
+        "stroke_color": {
+          "a": 0.9,
+          "b": 255,
+          "g": 255,
+          "r": 255
+        },
+        "stroke_width": 2
+      },
+      {
+        "end": 45.24,
+        "font": "DejaVu-Sans",
+        "glow": false,
+        "color": {
+          "a": 1,
+          "b": 0,
+          "g": 0,
+          "r": 0
+        },
+        "start": 43.6,
+        "shadow": true,
+        "content": "которые проделали гигантскую дыру в",
+        "position": "bottom",
+        "animation": {
+          "fade_in": 0.08,
+          "fade_out": 0.08
+        },
+        "font_size": 56,
+        "max_width": 972,
+        "stroke_color": {
+          "a": 0.9,
+          "b": 255,
+          "g": 255,
+          "r": 255
+        },
+        "stroke_width": 2
+      },
+      {
+        "end": 47.04,
+        "font": "DejaVu-Sans",
+        "glow": false,
+        "color": {
+          "a": 1,
+          "b": 0,
+          "g": 0,
+          "r": 0
+        },
+        "start": 45.24,
+        "shadow": true,
+        "content": "озоновом слое. То есть один",
+        "position": "bottom",
+        "animation": {
+          "fade_in": 0.08,
+          "fade_out": 0.08
+        },
+        "font_size": 56,
+        "max_width": 972,
+        "stroke_color": {
+          "a": 0.9,
+          "b": 255,
+          "g": 255,
+          "r": 255
+        },
+        "stroke_width": 2
+      },
+      {
+        "end": 49.24,
+        "font": "DejaVu-Sans",
+        "glow": false,
+        "color": {
+          "a": 1,
+          "b": 0,
+          "g": 0,
+          "r": 0
+        },
+        "start": 47.14,
+        "shadow": true,
+        "content": "человек сначала отравил воздух, а",
+        "position": "bottom",
+        "animation": {
+          "fade_in": 0.08,
+          "fade_out": 0.08
+        },
+        "font_size": 56,
+        "max_width": 972,
+        "stroke_color": {
+          "a": 0.9,
+          "b": 255,
+          "g": 255,
+          "r": 255
+        },
+        "stroke_width": 2
+      },
+      {
+        "end": 50.8,
+        "font": "DejaVu-Sans",
+        "glow": false,
+        "color": {
+          "a": 1,
+          "b": 0,
+          "g": 0,
+          "r": 0
+        },
+        "start": 49.24,
+        "shadow": true,
+        "content": "потом лишил Землю защиты от",
+        "position": "bottom",
+        "animation": {
+          "fade_in": 0.08,
+          "fade_out": 0.08
+        },
+        "font_size": 56,
+        "max_width": 972,
+        "stroke_color": {
+          "a": 0.9,
+          "b": 255,
+          "g": 255,
+          "r": 255
+        },
+        "stroke_width": 2
+      },
+      {
+        "end": 53.04,
+        "font": "DejaVu-Sans",
+        "glow": false,
+        "color": {
+          "a": 1,
+          "b": 0,
+          "g": 0,
+          "r": 0
+        },
+        "start": 50.8,
+        "shadow": true,
+        "content": "солнечной радиации. Учёные до сих",
+        "position": "bottom",
+        "animation": {
+          "fade_in": 0.08,
+          "fade_out": 0.08
+        },
+        "font_size": 56,
+        "max_width": 972,
+        "stroke_color": {
+          "a": 0.9,
+          "b": 255,
+          "g": 255,
+          "r": 255
+        },
+        "stroke_width": 2
+      },
+      {
+        "end": 54.02,
+        "font": "DejaVu-Sans",
+        "glow": false,
+        "color": {
+          "a": 1,
+          "b": 0,
+          "g": 0,
+          "r": 0
+        },
+        "start": 53.04,
+        "shadow": true,
+        "content": "пор в шоке от того,",
+        "position": "bottom",
+        "animation": {
+          "fade_in": 0.08,
+          "fade_out": 0.08
+        },
+        "font_size": 56,
+        "max_width": 972,
+        "stroke_color": {
+          "a": 0.9,
+          "b": 255,
+          "g": 255,
+          "r": 255
+        },
+        "stroke_width": 2
+      },
+      {
+        "end": 55.56,
+        "font": "DejaVu-Sans",
+        "glow": false,
+        "color": {
+          "a": 1,
+          "b": 0,
+          "g": 0,
+          "r": 0
+        },
+        "start": 54.14,
+        "shadow": true,
+        "content": "как один мозг мог так",
+        "position": "bottom",
+        "animation": {
+          "fade_in": 0.08,
+          "fade_out": 0.08
+        },
+        "font_size": 56,
+        "max_width": 972,
+        "stroke_color": {
+          "a": 0.9,
+          "b": 255,
+          "g": 255,
+          "r": 255
+        },
+        "stroke_width": 2
+      },
+      {
+        "end": 56.98,
+        "font": "DejaVu-Sans",
+        "glow": false,
+        "color": {
+          "a": 1,
+          "b": 0,
+          "g": 0,
+          "r": 0
+        },
+        "start": 55.56,
+        "shadow": true,
+        "content": "методично ломать биосферу.",
+        "position": "bottom",
+        "animation": {
+          "fade_in": 0.08,
+          "fade_out": 0.08
+        },
+        "font_size": 56,
+        "max_width": 972,
+        "stroke_color": {
+          "a": 0.9,
+          "b": 255,
+          "g": 255,
+          "r": 255
+        },
+        "stroke_width": 2
+      },
+      {
+        "end": 59.3,
+        "font": "DejaVu-Sans",
+        "glow": false,
+        "color": {
+          "a": 1,
+          "b": 0,
+          "g": 0,
+          "r": 0
+        },
+        "start": 57.64,
+        "shadow": true,
+        "content": "Но самое ироничное и жуткое",
+        "position": "bottom",
+        "animation": {
+          "fade_in": 0.08,
+          "fade_out": 0.08
+        },
+        "font_size": 56,
+        "max_width": 972,
+        "stroke_color": {
+          "a": 0.9,
+          "b": 255,
+          "g": 255,
+          "r": 255
+        },
+        "stroke_width": 2
+      },
+      {
+        "end": 60.8,
+        "font": "DejaVu-Sans",
+        "glow": false,
+        "color": {
+          "a": 1,
+          "b": 0,
+          "g": 0,
+          "r": 0
+        },
+        "start": 59.3,
+        "shadow": true,
+        "content": "— это финал его жизни.",
+        "position": "bottom",
+        "animation": {
+          "fade_in": 0.08,
+          "fade_out": 0.08
+        },
+        "font_size": 56,
+        "max_width": 972,
+        "stroke_color": {
+          "a": 0.9,
+          "b": 255,
+          "g": 255,
+          "r": 255
+        },
+        "stroke_width": 2
+      },
+      {
+        "end": 62.84,
+        "font": "DejaVu-Sans",
+        "glow": false,
+        "color": {
+          "a": 1,
+          "b": 0,
+          "g": 0,
+          "r": 0
+        },
+        "start": 61.38,
+        "shadow": true,
+        "content": "Когда Миджли заболел и оказался",
+        "position": "bottom",
+        "animation": {
+          "fade_in": 0.08,
+          "fade_out": 0.08
+        },
+        "font_size": 56,
+        "max_width": 972,
+        "stroke_color": {
+          "a": 0.9,
+          "b": 255,
+          "g": 255,
+          "r": 255
+        },
+        "stroke_width": 2
+      },
+      {
+        "end": 64.54,
+        "font": "DejaVu-Sans",
+        "glow": false,
+        "color": {
+          "a": 1,
+          "b": 0,
+          "g": 0,
+          "r": 0
+        },
+        "start": 62.94,
+        "shadow": true,
+        "content": "прикован к постели, он не",
+        "position": "bottom",
+        "animation": {
+          "fade_in": 0.08,
+          "fade_out": 0.08
+        },
+        "font_size": 56,
+        "max_width": 972,
+        "stroke_color": {
+          "a": 0.9,
+          "b": 255,
+          "g": 255,
+          "r": 255
+        },
+        "stroke_width": 2
+      },
+      {
+        "end": 66.44,
+        "font": "DejaVu-Sans",
+        "glow": false,
+        "color": {
+          "a": 1,
+          "b": 0,
+          "g": 0,
+          "r": 0
+        },
+        "start": 64.54,
+        "shadow": true,
+        "content": "изменил себе и сконструировал сложную",
+        "position": "bottom",
+        "animation": {
+          "fade_in": 0.08,
+          "fade_out": 0.08
+        },
+        "font_size": 56,
+        "max_width": 972,
+        "stroke_color": {
+          "a": 0.9,
+          "b": 255,
+          "g": 255,
+          "r": 255
+        },
+        "stroke_width": 2
+      },
+      {
+        "end": 68.36,
+        "font": "DejaVu-Sans",
+        "glow": false,
+        "color": {
+          "a": 1,
+          "b": 0,
+          "g": 0,
+          "r": 0
+        },
+        "start": 66.44,
+        "shadow": true,
+        "content": "систему тросов и шкивов, чтобы",
+        "position": "bottom",
+        "animation": {
+          "fade_in": 0.08,
+          "fade_out": 0.08
+        },
+        "font_size": 56,
+        "max_width": 972,
+        "stroke_color": {
+          "a": 0.9,
+          "b": 255,
+          "g": 255,
+          "r": 255
+        },
+        "stroke_width": 2
+      },
+      {
+        "end": 70.38,
+        "font": "DejaVu-Sans",
+        "glow": false,
+        "color": {
+          "a": 1,
+          "b": 0,
+          "g": 0,
+          "r": 0
+        },
+        "start": 68.36,
+        "shadow": true,
+        "content": "самостоятельно подниматься. И что вы",
+        "position": "bottom",
+        "animation": {
+          "fade_in": 0.08,
+          "fade_out": 0.08
+        },
+        "font_size": 56,
+        "max_width": 972,
+        "stroke_color": {
+          "a": 0.9,
+          "b": 255,
+          "g": 255,
+          "r": 255
+        },
+        "stroke_width": 2
+      },
+      {
+        "end": 72.33,
+        "font": "DejaVu-Sans",
+        "glow": false,
+        "color": {
+          "a": 1,
+          "b": 0,
+          "g": 0,
+          "r": 0
+        },
+        "start": 70.38,
+        "shadow": true,
+        "content": "думаете? Он запутался в собственных",
+        "position": "bottom",
+        "animation": {
+          "fade_in": 0.08,
+          "fade_out": 0.08
+        },
+        "font_size": 56,
+        "max_width": 972,
+        "stroke_color": {
+          "a": 0.9,
+          "b": 255,
+          "g": 255,
+          "r": 255
+        },
+        "stroke_width": 2
+      },
+      {
+        "end": 73.82,
+        "font": "DejaVu-Sans",
+        "glow": false,
+        "color": {
+          "a": 1,
+          "b": 0,
+          "g": 0,
+          "r": 0
+        },
+        "start": 72.44,
+        "shadow": true,
+        "content": "веревках и задохнулся.",
+        "position": "bottom",
+        "animation": {
+          "fade_in": 0.08,
+          "fade_out": 0.08
+        },
+        "font_size": 56,
+        "max_width": 972,
+        "stroke_color": {
+          "a": 0.9,
+          "b": 255,
+          "g": 255,
+          "r": 255
+        },
+        "stroke_width": 2
+      },
+      {
+        "end": 76.18,
+        "font": "DejaVu-Sans",
+        "glow": false,
+        "color": {
+          "a": 1,
+          "b": 0,
+          "g": 0,
+          "r": 0
+        },
+        "start": 74.24,
+        "shadow": true,
+        "content": "Его же собственное изобретение его",
+        "position": "bottom",
+        "animation": {
+          "fade_in": 0.08,
+          "fade_out": 0.08
+        },
+        "font_size": 56,
+        "max_width": 972,
+        "stroke_color": {
+          "a": 0.9,
+          "b": 255,
+          "g": 255,
+          "r": 255
+        },
+        "stroke_width": 2
+      },
+      {
+        "end": 78.1,
+        "font": "DejaVu-Sans",
+        "glow": false,
+        "color": {
+          "a": 1,
+          "b": 0,
+          "g": 0,
+          "r": 0
+        },
+        "start": 76.18,
+        "shadow": true,
+        "content": "и прикончило. Это история о",
+        "position": "bottom",
+        "animation": {
+          "fade_in": 0.08,
+          "fade_out": 0.08
+        },
+        "font_size": 56,
+        "max_width": 972,
+        "stroke_color": {
+          "a": 0.9,
+          "b": 255,
+          "g": 255,
+          "r": 255
+        },
+        "stroke_width": 2
+      },
+      {
+        "end": 79.92,
+        "font": "DejaVu-Sans",
+        "glow": false,
+        "color": {
+          "a": 1,
+          "b": 0,
+          "g": 0,
+          "r": 0
+        },
+        "start": 78.1,
+        "shadow": true,
+        "content": "том, что благими намерениями иногда",
+        "position": "bottom",
+        "animation": {
+          "fade_in": 0.08,
+          "fade_out": 0.08
+        },
+        "font_size": 56,
+        "max_width": 972,
+        "stroke_color": {
+          "a": 0.9,
+          "b": 255,
+          "g": 255,
+          "r": 255
+        },
+        "stroke_width": 2
+      },
+      {
+        "end": 82.42,
+        "font": "DejaVu-Sans",
+        "glow": false,
+        "color": {
+          "a": 1,
+          "b": 0,
+          "g": 0,
+          "r": 0
+        },
+        "start": 79.92,
+        "shadow": true,
+        "content": "вымощена дорога в настоящий экологический",
+        "position": "bottom",
+        "animation": {
+          "fade_in": 0.08,
+          "fade_out": 0.08
+        },
+        "font_size": 56,
+        "max_width": 972,
+        "stroke_color": {
+          "a": 0.9,
+          "b": 255,
+          "g": 255,
+          "r": 255
+        },
+        "stroke_width": 2
+      },
+      {
+        "end": 84.46,
+        "font": "DejaVu-Sans",
+        "glow": false,
+        "color": {
+          "a": 1,
+          "b": 0,
+          "g": 0,
+          "r": 0
+        },
+        "start": 82.42,
+        "shadow": true,
+        "content": "ад. Если этот факт заставил",
+        "position": "bottom",
+        "animation": {
+          "fade_in": 0.08,
+          "fade_out": 0.08
+        },
+        "font_size": 56,
+        "max_width": 972,
+        "stroke_color": {
+          "a": 0.9,
+          "b": 255,
+          "g": 255,
+          "r": 255
+        },
+        "stroke_width": 2
+      },
+      {
+        "end": 86.1,
+        "font": "DejaVu-Sans",
+        "glow": false,
+        "color": {
+          "a": 1,
+          "b": 0,
+          "g": 0,
+          "r": 0
+        },
+        "start": 84.46,
+        "shadow": true,
+        "content": "вас задуматься о цене прогресса",
+        "position": "bottom",
+        "animation": {
+          "fade_in": 0.08,
+          "fade_out": 0.08
+        },
+        "font_size": 56,
+        "max_width": 972,
+        "stroke_color": {
+          "a": 0.9,
+          "b": 255,
+          "g": 255,
+          "r": 255
+        },
+        "stroke_width": 2
+      },
+      {
+        "end": 88.075,
+        "font": "DejaVu-Sans",
+        "glow": false,
+        "color": {
+          "a": 1,
+          "b": 0,
+          "g": 0,
+          "r": 0
+        },
+        "start": 86.1,
+        "shadow": true,
+        "content": "— обязательно подписывайтесь на канал.",
+        "position": "bottom",
+        "animation": {
+          "fade_in": 0.08,
+          "fade_out": 0.08
+        },
+        "font_size": 56,
+        "max_width": 972,
+        "stroke_color": {
+          "a": 0.9,
+          "b": 255,
+          "g": 255,
+          "r": 255
+        },
+        "stroke_width": 2
+      },
+      {
+        "end": 89.82,
+        "font": "DejaVu-Sans",
+        "glow": false,
+        "color": {
+          "a": 1,
+          "b": 0,
+          "g": 0,
+          "r": 0
+        },
+        "start": 88.62,
+        "shadow": true,
+        "content": "Мы здесь копаем глубоко и",
+        "position": "bottom",
+        "animation": {
+          "fade_in": 0.08,
+          "fade_out": 0.08
+        },
+        "font_size": 56,
+        "max_width": 972,
+        "stroke_color": {
+          "a": 0.9,
+          "b": 255,
+          "g": 255,
+          "r": 255
+        },
+        "stroke_width": 2
+      },
+      {
+        "end": 91.48,
+        "font": "DejaVu-Sans",
+        "glow": false,
+        "color": {
+          "a": 1,
+          "b": 0,
+          "g": 0,
+          "r": 0
+        },
+        "start": 89.82,
+        "shadow": true,
+        "content": "ищем правду, которую не всегда",
+        "position": "bottom",
+        "animation": {
+          "fade_in": 0.08,
+          "fade_out": 0.08
+        },
+        "font_size": 56,
+        "max_width": 972,
+        "stroke_color": {
+          "a": 0.9,
+          "b": 255,
+          "g": 255,
+          "r": 255
+        },
+        "stroke_width": 2
+      },
+      {
+        "end": 93.98,
+        "font": "DejaVu-Sans",
+        "glow": false,
+        "color": {
+          "a": 1,
+          "b": 0,
+          "g": 0,
+          "r": 0
+        },
+        "start": 91.59,
+        "shadow": true,
+        "content": "приятно слышать. Поддержите проект лайком,",
+        "position": "bottom",
+        "animation": {
+          "fade_in": 0.08,
+          "fade_out": 0.08
+        },
+        "font_size": 56,
+        "max_width": 972,
+        "stroke_color": {
+          "a": 0.9,
+          "b": 255,
+          "g": 255,
+          "r": 255
+        },
+        "stroke_width": 2
+      },
+      {
+        "end": 95.7,
+        "font": "DejaVu-Sans",
+        "glow": false,
+        "color": {
+          "a": 1,
+          "b": 0,
+          "g": 0,
+          "r": 0
+        },
+        "start": 94.4,
+        "shadow": true,
+        "content": "впереди еще много невероятного!",
+        "position": "bottom",
+        "animation": {
+          "fade_in": 0.08,
+          "fade_out": 0.08
+        },
+        "font_size": 56,
+        "max_width": 972,
+        "stroke_color": {
+          "a": 0.9,
+          "b": 255,
+          "g": 255,
+          "r": 255
+        },
+        "stroke_width": 2
+      }
+    ],
+    "output": {
+      "fps": 24,
+      "format": "mp4",
+      "bitrate": "4M",
+      "filename": "20260316_012903_362_final.mp4",
+      "resolution": {
+        "width": 1080,
+        "height": 1920
+      }
+    },
+    "detail_answer": true
+  }

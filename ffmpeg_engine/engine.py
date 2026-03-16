@@ -1802,6 +1802,8 @@ class VideoEngine:
         if audio_bitrate:
             write_kwargs["audio_bitrate"] = audio_bitrate
 
+        # Suppress MoviePy progress bars in API mode; worker processes return structured status instead.
+        write_kwargs["logger"] = None
         clip.write_videofile(str(output_path), **write_kwargs)
         return output_path
 

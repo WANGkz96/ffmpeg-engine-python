@@ -69,12 +69,14 @@ The compose file mounts:
 - `./renders` -> `/app/renders` (render output)
 
 Performance knobs:
-- `RENDER_CONCURRENCY` limits how many render requests the API runs in parallel. Default in compose: `8`.
+- `RENDER_MODE_CONCURRENCY` limits how many `mode=render` jobs can run at once. Default in compose: `4`.
+- `CONCAT_NORMALIZE_CONCURRENCY` limits how many `mode=concat_normalize` jobs can run at once. Default in compose: `1` (extra requests wait in queue).
 - `FFMPEG_USE_GPU=1` enables NVENC for output encoding when available. This is already enabled in the current container.
 - `FFMPEG_THREADS` controls FFmpeg encoder/worker threads. Default in compose: `8`.
 - `FFMPEG_FILTER_THREADS` controls FFmpeg filter graph threads. Default in compose: `8`.
 - Requests targeting the same output filename are still serialized to avoid two renders writing to the same file at once.
-- For CPU-heavy MoviePy timelines (motion blur / whip pan / custom Python frame filters), the main bottleneck is often Python frame generation, so raising FFmpeg thread counts alone will not fully saturate all CPU cores.
+- `mode=render` now runs inside isolated subprocess workers instead of the FastAPI process, so multiple render requests can use multiple CPU cores and a single render crash is less likely to take down the whole API.
+- If the client disconnects while a queued/running job is waiting inside the API, the server attempts to cancel the corresponding worker process.
 
 Absolute paths in Docker:
 - Containers cannot directly read host paths like `C:/...` unless that host folder is mounted.

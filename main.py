@@ -5,10 +5,13 @@ import asyncio
 import json
 import logging
 import os
+import signal
+import subprocess
+import sys
+import tempfile
 from pathlib import Path
 
 from fastapi import Body, FastAPI, HTTPException, Query, Request, Response
-from fastapi.concurrency import run_in_threadpool
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from PIL import Image
@@ -18,7 +21,7 @@ if not hasattr(Image, "ANTIALIAS"):
     Image.ANTIALIAS = Image.Resampling.LANCZOS
 
 from ffmpeg_engine.engine import VideoEngine
-from ffmpeg_engine.models import RenderRequest, RenderResult
+from ffmpeg_engine.models import ProcessingMode, RenderRequest, RenderResult
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -58,19 +61,48 @@ def _get_server_port() -> int:
     return max(port, 1)
 
 
-def _get_render_concurrency() -> int:
-    raw_value = os.getenv("RENDER_CONCURRENCY", "").strip()
+def _get_render_mode_concurrency() -> int:
+    raw_value = os.getenv("RENDER_MODE_CONCURRENCY", "").strip()
+    if raw_value:
+        try:
+            return max(int(raw_value), 1)
+        except ValueError:
+            logger.warning("Invalid RENDER_MODE_CONCURRENCY=%r; falling back to 4", raw_value)
+            return 4
+    legacy_value = os.getenv("RENDER_CONCURRENCY", "").strip()
+    if legacy_value:
+        try:
+            return max(int(legacy_value), 1)
+        except ValueError:
+            logger.warning("Invalid RENDER_CONCURRENCY=%r; falling back to 4 for render mode", legacy_value)
+    return 4
+
+
+def _get_concat_mode_concurrency() -> int:
+    raw_value = os.getenv("CONCAT_NORMALIZE_CONCURRENCY", "").strip()
     if not raw_value:
-        return 8
+        return 1
     try:
-        concurrency = int(raw_value)
+        return max(int(raw_value), 1)
     except ValueError:
-        logger.warning("Invalid RENDER_CONCURRENCY=%r; falling back to 8", raw_value)
-        return 8
-    return max(concurrency, 1)
+        logger.warning("Invalid CONCAT_NORMALIZE_CONCURRENCY=%r; falling back to 1", raw_value)
+        return 1
 
 
-render_semaphore = asyncio.Semaphore(_get_render_concurrency())
+def _get_disconnect_poll_seconds() -> float:
+    raw_value = os.getenv("REQUEST_DISCONNECT_POLL_SECONDS", "").strip()
+    if not raw_value:
+        return 1.0
+    try:
+        value = float(raw_value)
+    except ValueError:
+        logger.warning("Invalid REQUEST_DISCONNECT_POLL_SECONDS=%r; falling back to 1.0", raw_value)
+        return 1.0
+    return max(value, 0.1)
+
+
+render_mode_semaphore = asyncio.Semaphore(_get_render_mode_concurrency())
+concat_mode_semaphore = asyncio.Semaphore(_get_concat_mode_concurrency())
 output_lock_registry_guard = asyncio.Lock()
 output_locks: dict[str, asyncio.Lock] = {}
 cors_allow_origins = _get_cors_allow_origins()
@@ -156,6 +188,191 @@ def _build_json_payload(request: Request, result: RenderResult, detail_answer: b
     return payload
 
 
+def _model_to_jsonable(model) -> dict:
+    model_dump = getattr(model, "model_dump", None)
+    if callable(model_dump):
+        return model_dump(mode="json")
+    return json.loads(model.json())
+
+
+def _parse_render_result(payload: dict) -> RenderResult:
+    try:
+        return RenderResult.model_validate(payload)
+    except AttributeError:  # pragma: no cover - pydantic v1 fallback
+        return RenderResult.parse_obj(payload)
+
+
+def _get_mode_semaphore(mode: ProcessingMode) -> asyncio.Semaphore:
+    return concat_mode_semaphore if mode == ProcessingMode.CONCAT_NORMALIZE else render_mode_semaphore
+
+
+async def _acquire_semaphore_with_disconnect(
+    semaphore: asyncio.Semaphore,
+    request: Request,
+    wait_label: str,
+) -> None:
+    poll_seconds = _get_disconnect_poll_seconds()
+    while True:
+        if await request.is_disconnected():
+            raise HTTPException(status_code=499, detail=f"Client disconnected while waiting for {wait_label}")
+        try:
+            await asyncio.wait_for(semaphore.acquire(), timeout=poll_seconds)
+            return
+        except asyncio.TimeoutError:
+            continue
+
+
+async def _acquire_lock_with_disconnect(
+    lock: asyncio.Lock,
+    request: Request,
+    wait_label: str,
+) -> None:
+    poll_seconds = _get_disconnect_poll_seconds()
+    while True:
+        if await request.is_disconnected():
+            raise HTTPException(status_code=499, detail=f"Client disconnected while waiting for {wait_label}")
+        try:
+            await asyncio.wait_for(lock.acquire(), timeout=poll_seconds)
+            return
+        except asyncio.TimeoutError:
+            continue
+
+
+async def _pump_stream(stream: asyncio.StreamReader | None) -> bytes:
+    if stream is None:
+        return b""
+    chunks: list[bytes] = []
+    while True:
+        chunk = await stream.read(65536)
+        if not chunk:
+            break
+        chunks.append(chunk)
+    return b"".join(chunks)
+
+
+def _trim_stderr_tail(stderr_bytes: bytes, max_lines: int = 12) -> str:
+    text = stderr_bytes.decode("utf-8", errors="replace").strip()
+    if not text:
+        return ""
+    return " | ".join(text.splitlines()[-max_lines:])
+
+
+async def _terminate_render_process(process: asyncio.subprocess.Process) -> None:
+    if process.returncode is not None:
+        return
+
+    try:
+        if os.name == "nt":
+            killer = await asyncio.create_subprocess_exec(
+                "taskkill",
+                "/PID",
+                str(process.pid),
+                "/T",
+                "/F",
+                stdout=asyncio.subprocess.DEVNULL,
+                stderr=asyncio.subprocess.DEVNULL,
+            )
+            await asyncio.wait_for(killer.wait(), timeout=5.0)
+        else:
+            os.killpg(process.pid, signal.SIGTERM)
+            await asyncio.wait_for(process.wait(), timeout=5.0)
+    except Exception:
+        try:
+            if process.returncode is None:
+                if os.name == "nt":
+                    killer = await asyncio.create_subprocess_exec(
+                        "taskkill",
+                        "/PID",
+                        str(process.pid),
+                        "/T",
+                        "/F",
+                        stdout=asyncio.subprocess.DEVNULL,
+                        stderr=asyncio.subprocess.DEVNULL,
+                    )
+                    await killer.wait()
+                else:
+                    os.killpg(process.pid, signal.SIGKILL)
+                    await process.wait()
+        except Exception:
+            logger.exception("Failed to terminate render worker pid=%s", process.pid)
+
+
+async def _run_render_worker(payload: RenderRequest, request: Request) -> RenderResult:
+    workspace = engine.workspace.resolve()
+    request_data = _model_to_jsonable(payload)
+
+    with tempfile.TemporaryDirectory(prefix="ffmpeg_engine_job_") as temp_dir_name:
+        temp_dir = Path(temp_dir_name)
+        request_path = temp_dir / "request.json"
+        result_path = temp_dir / "result.json"
+        request_path.write_text(json.dumps(request_data, ensure_ascii=False), encoding="utf-8")
+
+        command = [
+            sys.executable,
+            "-m",
+            "ffmpeg_engine.render_worker",
+            "--workspace",
+            str(workspace),
+            "--request-file",
+            str(request_path),
+            "--result-file",
+            str(result_path),
+        ]
+
+        creation_kwargs = {}
+        if os.name == "nt":
+            creation_kwargs["creationflags"] = subprocess.CREATE_NEW_PROCESS_GROUP
+        else:
+            creation_kwargs["start_new_session"] = True
+
+        process = await asyncio.create_subprocess_exec(
+            *command,
+            stdout=asyncio.subprocess.DEVNULL,
+            stderr=asyncio.subprocess.PIPE,
+            **creation_kwargs,
+        )
+        stderr_task = asyncio.create_task(_pump_stream(process.stderr))
+
+        try:
+            poll_seconds = _get_disconnect_poll_seconds()
+            while process.returncode is None:
+                if await request.is_disconnected():
+                    await _terminate_render_process(process)
+                    raise HTTPException(status_code=499, detail="Client disconnected; render cancelled")
+                try:
+                    await asyncio.wait_for(process.wait(), timeout=poll_seconds)
+                except asyncio.TimeoutError:
+                    continue
+        finally:
+            stderr_bytes = await stderr_task
+
+        if not result_path.exists():
+            stderr_tail = _trim_stderr_tail(stderr_bytes)
+            message = "Render worker exited without a result payload"
+            if stderr_tail:
+                message = f"{message}: {stderr_tail}"
+            raise HTTPException(status_code=500, detail=message)
+
+        try:
+            result_data = json.loads(result_path.read_text(encoding="utf-8"))
+        except Exception as exc:
+            stderr_tail = _trim_stderr_tail(stderr_bytes)
+            message = f"Failed to parse render worker result: {exc}"
+            if stderr_tail:
+                message = f"{message}. Worker stderr: {stderr_tail}"
+            raise HTTPException(status_code=500, detail=message) from exc
+
+        result = _parse_render_result(result_data)
+        if process.returncode not in {0, None} and result.status == "ok":
+            stderr_tail = _trim_stderr_tail(stderr_bytes)
+            message = "Render worker exited with a non-zero code despite ok result"
+            if stderr_tail:
+                message = f"{message}: {stderr_tail}"
+            raise HTTPException(status_code=500, detail=message)
+
+        return result
+
+
 @app.get("/")
 async def root() -> dict:
     return {"status": "ok", "message": "FFmpeg engine is running"}
@@ -195,10 +412,22 @@ async def render_endpoint(
 ):
     output_key = _resolve_output_target_key(payload)
     output_lock = await _get_output_lock(payload)
+    mode_semaphore = _get_mode_semaphore(payload.mode)
     logger.info("Incoming render request from %s target=%s", request.client, output_key)
-    async with output_lock:
-        async with render_semaphore:
-            result = await run_in_threadpool(engine.render, payload)
+    lock_acquired = False
+    slot_acquired = False
+    try:
+        await _acquire_lock_with_disconnect(output_lock, request, f"output lock for {Path(output_key).name}")
+        lock_acquired = True
+        await _acquire_semaphore_with_disconnect(mode_semaphore, request, f"{payload.mode.value} slot")
+        slot_acquired = True
+        result = await _run_render_worker(payload, request)
+    finally:
+        if slot_acquired:
+            mode_semaphore.release()
+        if lock_acquired:
+            output_lock.release()
+
     if result.status != "ok":
         raise HTTPException(status_code=400, detail=result.message or "Rendering failed")
 
