@@ -47,6 +47,7 @@
       "color": { "r": 255, "g": 255, "b": 255, "a": 1.0 },
       "stroke_color": { "r": 138, "g": 43, "b": 226, "a": 1.0 },
       "stroke_width": 8,
+      "bottom_offset_px": 140,
       "animation": {
         "fade_in": 0.15,
         "fade_out": 0.15,
@@ -154,8 +155,8 @@
   "output": {
     "filename": "motion_blur_subtitles_test.mp4",
     "format": "mp4",
-    "fps": 30,
-    "bitrate": "8M",
+    "fps": 14,
+    "bitrate": "1M",
     "resolution": {
       "width": 1080,
       "height": 1920

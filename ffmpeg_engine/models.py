@@ -187,6 +187,7 @@ class TextInstruction(BaseModel):
     ] = "center"
     font: str = "DejaVu-Sans"
     font_size: int = Field(48, gt=0)
+    bottom_offset_px: Optional[int] = Field(None, ge=0)
     color: ColorModel = Field(default_factory=lambda: ColorModel(r=255, g=255, b=255, a=1.0))
     stroke_color: Optional[ColorModel] = None
     stroke_width: int = Field(0, ge=0)
@@ -220,6 +221,7 @@ class OutputInstruction(BaseModel):
     filename: str = Field(default_factory=default_output_filename)
     fps: int = Field(30, gt=0)
     bitrate: Optional[str] = None
+    include_audio: bool = True
 
     @validator("resolution", always=True)
     def apply_default_resolution(cls, v, values):

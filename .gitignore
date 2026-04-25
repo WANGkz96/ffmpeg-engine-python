@@ -1,6 +1,8 @@
-renders
+/renders/
+/renders*/
 media
 examples
 .idea
 __pycache__
 ffmpeg_engine/__pycache__/
+*_finalTEMP_MPY_wvf_snd.mp4

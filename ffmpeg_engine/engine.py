@@ -1302,7 +1302,14 @@ class VideoEngine:
         )
 
         clip = clip.set_start(instruction.start).set_end(end_time)
-        clip = clip.set_position(self._resolve_position(instruction.position, target_resolution, clip.size))
+        clip = clip.set_position(
+            self._resolve_position(
+                instruction.position,
+                target_resolution,
+                clip.size,
+                bottom_offset_px=instruction.bottom_offset_px,
+            )
+        )
 
         return clip
 
@@ -1478,8 +1485,9 @@ class VideoEngine:
         return codec, "aac", preset, audio_sample_rate, audio_bitrate, ffmpeg_params
 
     @staticmethod
-    def _build_fast_audio_codec_args() -> List[str]:
-        return ["-c:a", "aac", "-ar", "48000", "-ac", "2", "-b:a", "128k"]
+    def _build_fast_audio_codec_args(audio_bitrate: Optional[str] = None) -> List[str]:
+        bitrate = str(audio_bitrate or os.getenv("FFMPEG_AAC_BITRATE", "").strip() or "128k").strip() or "128k"
+        return ["-c:a", "aac", "-ar", "48000", "-ac", "2", "-b:a", bitrate]
 
     def _run_external_command(
         self,
@@ -1583,6 +1591,7 @@ class VideoEngine:
         target_resolution: tuple[int, int],
         target_fps: int,
         bitrate: Optional[str],
+        include_audio: bool,
     ) -> None:
         target_w, target_h = target_resolution
         start = max(instruction.start, 0.0)
@@ -1604,7 +1613,7 @@ class VideoEngine:
             ]
         )
         vf_chain = ",".join(vf_parts)
-        source_has_audio = self._has_audio_stream(source_path)
+        source_has_audio = include_audio and self._has_audio_stream(source_path)
         command = [
             "ffmpeg",
             "-y",
@@ -1616,7 +1625,7 @@ class VideoEngine:
             "-i",
             str(source_path),
         ]
-        if not source_has_audio:
+        if include_audio and not source_has_audio:
             command += ["-f", "lavfi", "-i", "anullsrc=channel_layout=stereo:sample_rate=48000"]
         if start > 0:
             command += ["-ss", f"{start:.6f}"]
@@ -1627,15 +1636,25 @@ class VideoEngine:
         command += [
             "-map",
             "0:v:0",
-            "-map",
-            "0:a:0" if source_has_audio else "1:a:0",
+        ]
+        if include_audio:
+            command += [
+                "-map",
+                "0:a:0" if source_has_audio else "1:a:0",
+            ]
+        command += [
             "-dn",
             "-map_metadata",
             "-1",
             "-vf",
             vf_chain,
             *self._build_fast_video_codec_args(bitrate, output_path.suffix.lower().lstrip(".")),
-            *self._build_fast_audio_codec_args(),
+        ]
+        if include_audio:
+            command += self._build_fast_audio_codec_args()
+        else:
+            command += ["-an"]
+        command += [
             "-movflags",
             "+faststart",
             "-shortest",
@@ -1677,6 +1696,7 @@ class VideoEngine:
                         target_resolution=target_resolution,
                         target_fps=request.output.fps,
                         bitrate=request.output.bitrate,
+                        include_audio=request.output.include_audio,
                     )
                     clip_duration = self._probe_duration_seconds(normalized_path)
                     clip_start = cursor
@@ -1808,19 +1828,27 @@ class VideoEngine:
         return output_path
 
     @staticmethod
-    def _resolve_position(position: str, target_resolution: tuple[int, int], clip_size: tuple[int, int]):
+    def _resolve_position(
+        position: str,
+        target_resolution: tuple[int, int],
+        clip_size: tuple[int, int],
+        bottom_offset_px: int | None = None,
+    ):
         w, h = target_resolution
         cw, ch = clip_size
+        edge_margin_x = 0.05 * w
+        edge_margin_y = 0.05 * h
+        bottom_margin = edge_margin_y if bottom_offset_px is None else max(int(bottom_offset_px), 0)
         mapping = {
             "center": ("center", "center"),
-            "top": ("center", 0.05 * h),
-            "bottom": ("center", h - ch - 0.05 * h),
-            "left": (0.05 * w, "center"),
-            "right": (w - cw - 0.05 * w, "center"),
-            "top_left": (0.05 * w, 0.05 * h),
-            "top_right": (w - cw - 0.05 * w, 0.05 * h),
-            "bottom_left": (0.05 * w, h - ch - 0.05 * h),
-            "bottom_right": (w - cw - 0.05 * w, h - ch - 0.05 * h),
+            "top": ("center", edge_margin_y),
+            "bottom": ("center", h - ch - bottom_margin),
+            "left": (edge_margin_x, "center"),
+            "right": (w - cw - edge_margin_x, "center"),
+            "top_left": (edge_margin_x, edge_margin_y),
+            "top_right": (w - cw - edge_margin_x, edge_margin_y),
+            "bottom_left": (edge_margin_x, h - ch - bottom_margin),
+            "bottom_right": (w - cw - edge_margin_x, h - ch - bottom_margin),
         }
         return mapping.get(position, ("center", "center"))
 

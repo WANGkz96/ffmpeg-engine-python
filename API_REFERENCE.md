@@ -199,6 +199,7 @@ Used in `transitions_before` and `transitions_after`.
 | `position` | enum | `center` | `center`, `top`, `bottom`, `left`, `right`, `top_left`, `top_right`, `bottom_left`, `bottom_right`. |
 | `font` | string | `DejaVu-Sans` | Must be available on host. |
 | `font_size` | int | `48` | Font size in px. |
+| `bottom_offset_px` | int | `null` | Bottom offset in px for `bottom`, `bottom_left`, `bottom_right`. When omitted, the default bottom margin is used. |
 | `color` | RGBA | white | Text color. |
 | `stroke_color` | RGBA | `null` | Outline color. |
 | `stroke_width` | int | `0` | Outline width. |
