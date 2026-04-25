@@ -60,6 +60,7 @@ High-level structure:
   "mode": "render",
   "output": { ... },
   "clips": [ ... ],
+  "attachments": [ ... ],
   "audio": [ ... ],
   "texts": [ ... ],
   "images": [ ... ],
@@ -82,7 +83,7 @@ High-level structure:
 - `output.format` in this mode: `mp4`, `mov`, `mkv`.
 - Preserves audio by normalizing it to AAC 48kHz stereo before concatenation.
 - If a clip has no audio stream, silent audio is generated for that clip to keep concat compatibility.
-- Ignores transitions/text/images and other composition effects.
+- Ignores transitions/text/images/attachments and other composition effects.
 - Still returns the same response structure and supports `detail_answer`.
 
 ### Output Settings
@@ -144,6 +145,35 @@ If both `start` and `end` are omitted in a clip object, the clip is appended aut
 
 Important:
 - `clips[].start` / `clips[].end` are source trim markers (what part of each source file to use), not absolute timeline coordinates.
+
+### Attachment / Insert Overlays
+
+`attachments` is an overlay video layer. The alias `inserts` is accepted and behaves exactly the same way.
+
+These entries inherit the same source-level options as `clips`:
+
+- `source`, `start`, `end`
+- `fit_mode`, `background_mode`, `background_color`
+- `reframe`, `internal_zoom`
+- `transitions_before`, `transitions_after`
+- `chroma_key`, `adjustments`
+- `playback_rate`, `volume`
+
+Additional fields:
+
+| Field | Type | Default | Description |
+| --- | --- | --- | --- |
+| `at` | float | `0.0` | Timeline position where the insert starts when `placement="time"`. |
+| `placement` | enum | `time` | `time`, `start`, `end`. |
+
+Behavior:
+
+- Inserts are composited on top of the final video timeline; they do not shift clips, texts, images, or audio timing.
+- `placement="start"` ignores `at` and starts at timeline `0.0`.
+- `placement="end"` ignores `at` and aligns the insert end with the final video end.
+- `placement="time"` uses `at` as the timeline start.
+- If an insert would extend outside the final video duration, it is trimmed to the visible window.
+- Intro/outro transitions on inserts apply to the insert clip itself. They do not create sequential concat behavior like the main `clips` track.
 
 Absolute host paths in Docker:
 - A container cannot read host filesystem paths (`C:/...`) unless that host directory is mounted into the container.
@@ -250,6 +280,9 @@ Detailed response (`detail_answer=true`):
     "clips": [
       {"index": 0, "source": "C:/.../a.mp4", "start": 0.0, "end": 3.0, "auto_placed": true},
       {"index": 1, "source": "C:/.../b.mp4", "start": 3.0, "end": 6.0, "auto_placed": true}
+    ],
+    "attachments": [
+      {"index": 0, "source": "C:/.../intro.mp4", "start": 0.0, "end": 1.2, "auto_placed": true}
     ],
     "total_duration": 8.2
   }

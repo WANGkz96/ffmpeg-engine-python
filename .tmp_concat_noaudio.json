@@ -1,0 +1,14 @@
+{
+  "mode": "concat_normalize",
+  "clips": [
+    {"source": "media/14705086_1080_1920_30fps.mp4", "start": 0, "end": 2},
+    {"source": "media/5512609-hd_1080_1920_25fps.mp4", "start": 0, "end": 2}
+  ],
+  "output": {
+    "filename": "tmp_concat_noaudio.mp4",
+    "format": "mp4",
+    "fps": 14,
+    "include_audio": false,
+    "resolution": {"width": 1080, "height": 1920}
+  }
+}

@@ -1,0 +1,185 @@
+{
+  "clips": [
+    {
+      "source": "media/14705086_1080_1920_30fps.mp4",
+      "start": 0,
+      "end": 5,
+      "transitions_before": [
+        {
+          "type": "motion_blur",
+          "duration": 1.0,
+          "blur_strength": 100,
+          "fade": true
+        }
+      ],
+      "transitions_after": [
+        {
+          "type": "motion_blur",
+          "duration": 1.0,
+          "blur_strength": 100,
+          "glow": true
+        }
+      ]
+    },
+    {
+      "source": "media/5512609-hd_1080_1920_25fps.mp4",
+      "start": 0,
+      "end": 3,
+      "transitions_after": [
+        {
+          "type": "motion_blur",
+          "duration": 1.0,
+          "blur_strength": 100,
+          "fade": true
+        }
+      ]
+    }
+  ],
+  "inserts": [
+    {
+      "source": "media/The Obscura Intro.mp4",
+      "start": 1,
+      "end": 2,
+      "at": 99,
+      "placement": "start",
+      "fit_mode": "contain",
+      "background_mode": "blur",
+      "volume": 1,
+      "transitions_before": [
+        {
+          "type": "motion_blur",
+          "duration": 0.25,
+          "blur_strength": 80,
+          "fade": true
+        }
+      ],
+      "transitions_after": [
+        {
+          "type": "whip_pan",
+          "duration": 1,
+          "direction": "left",
+          "blur_strength": 220
+        }
+      ]
+    },
+    {
+      "source": "media/The Obscura Intro.mp4",
+      "start": 1.2,
+      "end": 2.4,
+      "at": 2.2,
+      "placement": "time",
+      "fit_mode": "contain",
+      "background_mode": "blur",
+      "volume": 0.0,
+      "transitions_before": [
+        {
+          "type": "fade_black",
+          "duration": 0.2
+        }
+      ],
+      "transitions_after": [
+        {
+          "type": "motion_blur",
+          "duration": 0.25,
+          "blur_strength": 80,
+          "fade": true
+        }
+      ]
+    },
+    {
+      "source": "media/The Obscura Intro.mp4",
+      "start": 2.4,
+      "end": 3.4,
+      "at": 999,
+      "placement": "end",
+      "fit_mode": "contain",
+      "background_mode": "blur",
+      "volume": 0.0,
+      "transitions_before": [
+        {
+          "type": "motion_blur",
+          "duration": 0.25,
+          "blur_strength": 90,
+          "glow": true
+        }
+      ],
+      "transitions_after": [
+        {
+          "type": "fade_black",
+          "duration": 0.2
+        }
+      ]
+    }
+  ],
+  "texts": [
+    {
+      "content": "Insert placement start ignores at",
+      "start": 0.25,
+      "end": 1.15,
+      "position": "bottom",
+      "font": "Comic Sans MS",
+      "font_size": 64,
+      "max_width": 720,
+      "color": { "r": 255, "g": 255, "b": 255, "a": 1.0 },
+      "stroke_color": { "r": 138, "g": 43, "b": 226, "a": 1.0 },
+      "stroke_width": 8,
+      "bottom_offset_px": 140,
+      "animation": {
+        "fade_in": 0.15,
+        "fade_out": 0.15,
+        "scale_from": 1.05,
+        "scale_to": 1.0,
+        "zoom_duration": 0.2
+      }
+    },
+    {
+      "content": "Timed insert overlays without shifting clips",
+      "start": 2.2,
+      "end": 3.2,
+      "position": "bottom",
+      "font": "Comic Sans MS",
+      "font_size": 64,
+      "max_width": 780,
+      "color": { "r": 248, "g": 248, "b": 248, "a": 1.0 },
+      "stroke_color": { "r": 138, "g": 43, "b": 226, "a": 1.0 },
+      "stroke_width": 8,
+      "animation": {
+        "fade_in": 0.15,
+        "fade_out": 0.15,
+        "scale_from": 1.06,
+        "scale_to": 1.0,
+        "zoom_duration": 0.2
+      }
+    },
+    {
+      "content": "End insert snaps to final frame",
+      "start": 4.8,
+      "end": 5.8,
+      "position": "bottom",
+      "font": "Comic Sans MS",
+      "font_size": 64,
+      "max_width": 700,
+      "color": { "r": 255, "g": 255, "b": 255, "a": 1.0 },
+      "stroke_color": { "r": 138, "g": 43, "b": 226, "a": 1.0 },
+      "stroke_width": 8,
+      "animation": {
+        "fade_in": 0.15,
+        "fade_out": 0.15,
+        "scale_from": 1.05,
+        "scale_to": 1.0,
+        "zoom_duration": 0.2
+      }
+    }
+  ],
+  "detail_answer": true,
+  "output": {
+    "filename": "inserts_overlay_test.mp4",
+    "format": "mp4",
+    "fps": 14,
+    "bitrate": "1M",
+    "resolution": {
+      "width": 1080,
+      "height": 1920
+    }
+  }
+}

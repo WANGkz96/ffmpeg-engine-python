@@ -171,6 +171,7 @@ def _build_json_payload(request: Request, result: RenderResult, detail_answer: b
 
     if detail_answer:
         timeline_clips = result.timeline.clips if result.timeline else []
+        timeline_attachments = result.timeline.attachments if result.timeline else []
         payload["timeline"] = {
             "clips": [
                 {
@@ -181,6 +182,16 @@ def _build_json_payload(request: Request, result: RenderResult, detail_answer: b
                     "auto_placed": clip.auto_placed,
                 }
                 for clip in timeline_clips
+            ],
+            "attachments": [
+                {
+                    "index": clip.index,
+                    "source": str(clip.source),
+                    "start": round(clip.start, 1),
+                    "end": round(clip.end, 1),
+                    "auto_placed": clip.auto_placed,
+                }
+                for clip in timeline_attachments
             ],
             "total_duration": round(result.duration, 1),
         }

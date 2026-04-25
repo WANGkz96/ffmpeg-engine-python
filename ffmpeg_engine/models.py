@@ -6,7 +6,7 @@ from enum import Enum
 from pathlib import Path
 from typing import List, Literal, Optional
 
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, root_validator, validator
 
 MAX_INTERNAL_ZOOM = 0.25
 
@@ -39,6 +39,12 @@ class TransitionType(str, Enum):
 class BackgroundMode(str, Enum):
     BLUR = "blur"
     COLOR = "color"
+
+
+class InsertPlacement(str, Enum):
+    TIME = "time"
+    START = "start"
+    END = "end"
 
 
 class ProcessingMode(str, Enum):
@@ -159,6 +165,11 @@ class ClipInstruction(BaseModel):
 
 
 
+class InsertInstruction(ClipInstruction):
+    at: float = Field(0.0, ge=0.0)
+    placement: InsertPlacement = InsertPlacement.TIME
+
+
 class AudioInstruction(BaseModel):
     source: Path
     start: float = Field(0.0, ge=0.0)
@@ -236,10 +247,27 @@ class RenderRequest(BaseModel):
     mode: ProcessingMode = ProcessingMode.RENDER
     output: OutputInstruction = Field(default_factory=OutputInstruction)
     clips: List[ClipInstruction] = Field(default_factory=list)
+    attachments: List[InsertInstruction] = Field(default_factory=list)
     audio: List[AudioInstruction] = Field(default_factory=list)
     texts: List[TextInstruction] = Field(default_factory=list)
     images: List[ImageInstruction] = Field(default_factory=list)
     detail_answer: bool = False
+
+    @root_validator(pre=True)
+    def normalize_insert_aliases(cls, values):
+        if not isinstance(values, dict):
+            return values
+
+        attachments = values.get("attachments")
+        inserts = values.get("inserts")
+
+        normalized_attachments = attachments if isinstance(attachments, list) else []
+        normalized_inserts = inserts if isinstance(inserts, list) else []
+
+        if normalized_attachments or normalized_inserts:
+            values["attachments"] = [*normalized_attachments, *normalized_inserts]
+
+        return values
 
 
 class TimelineClipModel(BaseModel):
@@ -252,6 +280,7 @@ class TimelineClipModel(BaseModel):
 
 class TimelineDetailModel(BaseModel):
     clips: List[TimelineClipModel] = Field(default_factory=list)
+    attachments: List[TimelineClipModel] = Field(default_factory=list)
 
 
 class RenderResult(BaseModel):

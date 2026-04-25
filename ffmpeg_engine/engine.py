@@ -44,66 +44,116 @@ logger = logging.getLogger(__name__)
 
 # --- Monkey patch or helper functions ---
 
-def dynamic_motion_blur(clip, strength_func, direction: str = "horizontal"):
+def _normalize_motion_blur_kernel(strength: float) -> int:
+    k_size = int(strength)
+    if k_size < 2:
+        return 0
+    if k_size % 2 == 0:
+        k_size += 1
+    return k_size
+
+
+def _apply_motion_blur_to_frame(frame, k_size: int, direction: str = "horizontal", max_value: float = 255.0):
+    if k_size < 2:
+        return frame
+
+    img_float = frame.astype(float)
+    squeezed = False
+    if img_float.ndim == 2:
+        img_float = img_float[:, :, None]
+        squeezed = True
+
+    radius = k_size // 2
+    if direction == "horizontal":
+        axis = 1
+        pad_width = ((0, 0), (radius, radius), (0, 0))
+    else:
+        axis = 0
+        pad_width = ((radius, radius), (0, 0), (0, 0))
+
+    padded = np.pad(img_float, pad_width, mode="edge")
+    cumsum = np.cumsum(padded, axis=axis)
+
+    if axis == 1:
+        zeros = np.zeros((cumsum.shape[0], 1, cumsum.shape[2]))
+        cumsum_padded = np.hstack((zeros, cumsum))
+        upper = cumsum_padded[:, k_size : k_size + img_float.shape[1], :]
+        lower = cumsum_padded[:, 0 : img_float.shape[1], :]
+    else:
+        zeros = np.zeros((1, cumsum.shape[1], cumsum.shape[2]))
+        cumsum_padded = np.vstack((zeros, cumsum))
+        upper = cumsum_padded[k_size : k_size + img_float.shape[0], :, :]
+        lower = cumsum_padded[0 : img_float.shape[0], :, :]
+
+    result = np.clip((upper - lower) / k_size, 0.0, max_value)
+    if squeezed:
+        result = result[:, :, 0]
+
+    if np.issubdtype(frame.dtype, np.integer):
+        return result.astype(frame.dtype)
+    return result.astype(frame.dtype, copy=False)
+
+
+def dynamic_motion_blur(clip, strength_func, direction: str = "horizontal", blur_mask: bool = False):
     """
     Motion blur с динамической силой (зависит от времени).
     strength_func(t) -> float (размер ядра, px)
     direction: "horizontal" | "vertical"
     """
+    if blur_mask and clip.mask is not None:
+        def filter_frame(get_frame, t):
+            rgb = get_frame(t).astype(float)
+            alpha = np.clip(clip.mask.get_frame(t).astype(float), 0.0, 1.0)
+            k_size = _normalize_motion_blur_kernel(strength_func(t))
+            try:
+                if rgb.ndim == 2:
+                    rgb = rgb[:, :, None]
+
+                alpha_3d = alpha[:, :, None] if alpha.ndim == 2 else alpha
+                premultiplied = rgb * alpha_3d
+                blurred_rgb = _apply_motion_blur_to_frame(premultiplied, k_size, direction=direction, max_value=255.0)
+                blurred_alpha = _apply_motion_blur_to_frame(alpha, k_size, direction=direction, max_value=1.0)
+                if blurred_rgb.ndim == 2:
+                    blurred_rgb = blurred_rgb[:, :, None]
+                if blurred_alpha.ndim == 2:
+                    blurred_alpha_3d = blurred_alpha[:, :, None]
+                else:
+                    blurred_alpha_3d = blurred_alpha
+
+                with np.errstate(divide="ignore", invalid="ignore"):
+                    rgb_out = np.where(
+                        blurred_alpha_3d > 1e-6,
+                        blurred_rgb / blurred_alpha_3d,
+                        0.0,
+                    )
+                rgb_out = np.clip(rgb_out, 0.0, 255.0)
+                if get_frame(t).ndim == 2:
+                    return rgb_out[:, :, 0].astype(np.uint8)
+                return rgb_out.astype(np.uint8)
+            except Exception as e:
+                logger.warning(f"Motion blur failed: {e}")
+                return get_frame(t)
+
+        def filter_mask(get_frame, t):
+            frame = get_frame(t)
+            k_size = _normalize_motion_blur_kernel(strength_func(t))
+            try:
+                return _apply_motion_blur_to_frame(frame, k_size, direction=direction, max_value=1.0)
+            except Exception as e:
+                logger.warning(f"Motion blur mask failed: {e}")
+                return frame
+
+        return clip.fl(filter_frame).set_mask(clip.mask.fl(filter_mask))
+
     def filter_frame(get_frame, t):
         frame = get_frame(t)
-        k_size = int(strength_func(t))
-        
-        if k_size < 2:
-            return frame
-            
-        # Force odd kernel size for symmetry
-        if k_size % 2 == 0:
-            k_size += 1
-            
-        radius = k_size // 2
-        
-        # Convert to float to avoid overflow during accumulation
-        img_float = frame.astype(float)
-        
-        if direction == "horizontal":
-            axis = 1
-            pad_width = ((0, 0), (radius, radius), (0, 0))
-        else:
-            axis = 0
-            pad_width = ((radius, radius), (0, 0), (0, 0))
-            
+        k_size = _normalize_motion_blur_kernel(strength_func(t))
         try:
-            # Pad with edge replication
-            padded = np.pad(img_float, pad_width, mode='edge')
-            
-            # Cumsum along axis
-            cumsum = np.cumsum(padded, axis=axis)
-            
-            # Pad cumsum with one zero slice at the beginning of the axis
-            if axis == 1:
-                zeros = np.zeros((cumsum.shape[0], 1, cumsum.shape[2]))
-                cumsum_padded = np.hstack((zeros, cumsum))
-            else:
-                zeros = np.zeros((1, cumsum.shape[1], cumsum.shape[2]))
-                cumsum_padded = np.vstack((zeros, cumsum))
-                
-            # Compute moving sum: sum[i] = cumsum[i+k] - cumsum[i]
-            if axis == 1:
-                upper = cumsum_padded[:, k_size : k_size + img_float.shape[1], :]
-                lower = cumsum_padded[:, 0 : img_float.shape[1], :]
-            else:
-                upper = cumsum_padded[k_size : k_size + img_float.shape[0], :, :]
-                lower = cumsum_padded[0 : img_float.shape[0], :, :]
-                
-            result = (upper - lower) / k_size
-            
-            return np.clip(result, 0, 255).astype(np.uint8)
-            
+            return _apply_motion_blur_to_frame(frame, k_size, direction=direction, max_value=255.0)
         except Exception as e:
             logger.warning(f"Motion blur failed: {e}")
             return frame
-    
+
     return clip.fl(filter_frame)
 
 def dynamic_brightness(clip, factor_func):
@@ -125,6 +175,8 @@ from .models import (
     ClipInstruction,
     FitMode,
     ImageInstruction,
+    InsertInstruction,
+    InsertPlacement,
     ProcessingMode,
     RenderRequest,
     RenderResult,
@@ -318,7 +370,8 @@ class VideoEngine:
             self,
             clip: mpe.VideoClip,
             transition: TransitionInstruction,
-            resolution: Tuple[int, int]
+            resolution: Tuple[int, int],
+            transparent_background: bool = False,
     ) -> mpe.VideoClip:
         """Whip pan в начале: влетает в кадр (с черного фона)."""
         duration = min(transition.duration, clip.duration)
@@ -331,9 +384,6 @@ class VideoEngine:
         # Делим клип
         head = clip.subclip(0, duration)
         rest = clip.subclip(duration) if clip.duration > duration else None
-
-        # Создаем "черный клип" как предыдущий
-        prev_clip = mpe.ColorClip(size=resolution, color=(0,0,0), duration=duration)
 
         # --- GLOBAL COMPOSITE LOGIC (Similar to _apply_whip_pan_between) ---
         def get_progress(t):
@@ -364,10 +414,14 @@ class VideoEngine:
             # head летит от (-dx, -dy) к (0,0)
             return (int(-dx + dx * eased), int(-dy + dy * eased))
 
-        prev_clip = prev_clip.set_position(pos_prev)
         head = head.set_position(pos_head)
-
-        transition_clip = mpe.CompositeVideoClip([prev_clip, head], size=resolution).set_duration(duration)
+        transition_layers: List[mpe.VideoClip] = []
+        if not transparent_background:
+            prev_clip = mpe.ColorClip(size=resolution, color=(0, 0, 0), duration=duration)
+            prev_clip = prev_clip.set_position(pos_prev)
+            transition_layers.append(prev_clip)
+        transition_layers.append(head)
+        transition_clip = mpe.CompositeVideoClip(transition_layers, size=resolution).set_duration(duration)
 
         max_blur = transition.blur_strength
         blur_direction = "horizontal" if abs(dx) > abs(dy) else "vertical"
@@ -380,7 +434,12 @@ class VideoEngine:
             velocity_factor = (1 - p) ** 2
             return max_blur * velocity_factor
 
-        transition_blurred = dynamic_motion_blur(transition_clip, blur_func, direction=blur_direction)
+        transition_blurred = dynamic_motion_blur(
+            transition_clip,
+            blur_func,
+            direction=blur_direction,
+            blur_mask=transparent_background,
+        )
 
         clips = [transition_blurred]
         if rest:
@@ -392,7 +451,8 @@ class VideoEngine:
             self,
             clip: mpe.VideoClip,
             transition: TransitionInstruction,
-            resolution: Tuple[int, int]
+            resolution: Tuple[int, int],
+            transparent_background: bool = False,
     ) -> mpe.VideoClip:
         """Whip pan в конце: улетает из кадра (в черный фон)."""
         duration = min(transition.duration, clip.duration)
@@ -405,9 +465,6 @@ class VideoEngine:
 
         body = clip.subclip(0, total - duration) if total > duration else None
         tail = clip.subclip(max(total - duration, 0), total)
-
-        # Создаем "черный клип" как следующий
-        next_clip = mpe.ColorClip(size=resolution, color=(0,0,0), duration=duration)
 
         # --- GLOBAL COMPOSITE LOGIC ---
         def get_progress(t):
@@ -432,9 +489,12 @@ class VideoEngine:
             return (int(-dx + dx * eased), int(-dy + dy * eased))
 
         tail = tail.set_position(pos_tail)
-        next_clip = next_clip.set_position(pos_next)
-
-        transition_clip = mpe.CompositeVideoClip([tail, next_clip], size=resolution).set_duration(duration)
+        transition_layers: List[mpe.VideoClip] = [tail]
+        if not transparent_background:
+            next_clip = mpe.ColorClip(size=resolution, color=(0, 0, 0), duration=duration)
+            next_clip = next_clip.set_position(pos_next)
+            transition_layers.append(next_clip)
+        transition_clip = mpe.CompositeVideoClip(transition_layers, size=resolution).set_duration(duration)
 
         max_blur = transition.blur_strength
         blur_direction = "horizontal" if abs(dx) > abs(dy) else "vertical"
@@ -447,7 +507,12 @@ class VideoEngine:
             velocity_factor = p ** 2
             return max_blur * velocity_factor
 
-        transition_blurred = dynamic_motion_blur(transition_clip, blur_func, direction=blur_direction)
+        transition_blurred = dynamic_motion_blur(
+            transition_clip,
+            blur_func,
+            direction=blur_direction,
+            blur_mask=transparent_background,
+        )
 
         clips = []
         if body:
@@ -701,7 +766,7 @@ class VideoEngine:
         video = None
         audio = None
         overlay: List[mpe.VideoClip] = []
-        timeline = TimelineDetailModel(clips=[])
+        timeline = TimelineDetailModel(clips=[], attachments=[])
         try:
             # Подготовка всех клипов (ресайз, эффекты, хромакей)
             for clip_instruction in request.clips:
@@ -713,10 +778,16 @@ class VideoEngine:
 
             # Сборка видео с переходами
             video, timeline_clips = self._concatenate_with_transitions(clips, request.clips, target_resolution)
-            timeline = TimelineDetailModel(clips=timeline_clips)
+            timeline = TimelineDetailModel(clips=timeline_clips, attachments=[])
 
             # Наложение текста и картинок
-            overlay = self._build_overlay(video.duration, request, target_resolution)
+            overlay, attachment_timeline = self._build_overlay(
+                video.duration,
+                request,
+                target_resolution,
+                request.output.fps,
+            )
+            timeline.attachments = attachment_timeline
 
             # Финальный композит
             final_clip = mpe.CompositeVideoClip([video, *overlay], size=target_resolution)
@@ -850,6 +921,136 @@ class VideoEngine:
             return clip.set_mask(mask.mask)
         except Exception:
             return clip
+
+    def _apply_intro_transition(
+        self,
+        clip: mpe.VideoClip,
+        instruction: ClipInstruction,
+        target_resolution: tuple[int, int],
+        transparent_background: bool = False,
+    ) -> mpe.VideoClip:
+        if not instruction.transitions_before:
+            return clip
+
+        intro = instruction.transitions_before[0]
+        if intro.type == TransitionType.CROSSFADE:
+            return clip.crossfadein(min(intro.duration, clip.duration))
+        if intro.type == TransitionType.FADE_BLACK:
+            return clip.fadein(min(intro.duration, clip.duration))
+        if intro.type == TransitionType.WHIP_PAN:
+            return self._apply_whip_pan_intro(
+                clip,
+                intro,
+                target_resolution,
+                transparent_background=transparent_background,
+            )
+        if intro.type == TransitionType.MOTION_BLUR:
+            return self._apply_motion_blur_intro(clip, intro, target_resolution)
+        return clip
+
+    def _apply_outro_transition(
+        self,
+        clip: mpe.VideoClip,
+        instruction: ClipInstruction,
+        target_resolution: tuple[int, int],
+        transparent_background: bool = False,
+    ) -> mpe.VideoClip:
+        if not instruction.transitions_after:
+            return clip
+
+        outro = instruction.transitions_after[0]
+        if outro.type == TransitionType.CROSSFADE:
+            return clip.crossfadeout(min(outro.duration, clip.duration))
+        if outro.type == TransitionType.FADE_BLACK:
+            return clip.fadeout(min(outro.duration, clip.duration))
+        if outro.type == TransitionType.WHIP_PAN:
+            return self._apply_whip_pan_outro(
+                clip,
+                outro,
+                target_resolution,
+                transparent_background=transparent_background,
+            )
+        if outro.type == TransitionType.MOTION_BLUR:
+            return self._apply_motion_blur_outro(clip, outro, target_resolution)
+        return clip
+
+    @staticmethod
+    def _resolve_attachment_start(instruction: InsertInstruction, timeline_duration: float, clip_duration: float) -> float:
+        if instruction.placement == InsertPlacement.START:
+            return 0.0
+        if instruction.placement == InsertPlacement.END:
+            return timeline_duration - clip_duration
+        return max(instruction.at, 0.0)
+
+    @staticmethod
+    def _trim_attachment_to_timeline(
+        clip: mpe.VideoClip,
+        timeline_start: float,
+        timeline_duration: float,
+    ) -> tuple[Optional[mpe.VideoClip], float]:
+        trim_start = 0.0
+        if timeline_start < 0.0:
+            trim_start = -timeline_start
+            timeline_start = 0.0
+
+        remaining_duration = max(timeline_duration - timeline_start, 0.0)
+        if remaining_duration <= 0.0 or trim_start >= clip.duration:
+            return None, timeline_start
+
+        trim_end = min(trim_start + remaining_duration, clip.duration)
+        if trim_end <= trim_start:
+            return None, timeline_start
+
+        if trim_start > 0.0 or trim_end < clip.duration:
+            clip = clip.subclip(trim_start, trim_end)
+        return clip, timeline_start
+
+    @staticmethod
+    def _is_auto_placed_attachment(instruction: InsertInstruction) -> bool:
+        if instruction.placement != InsertPlacement.TIME:
+            return True
+        fields_set = getattr(instruction, "model_fields_set", None)
+        if fields_set is None:
+            fields_set = getattr(instruction, "__fields_set__", set())
+        return "at" not in fields_set
+
+    def _build_attachment_clip(
+        self,
+        index: int,
+        instruction: InsertInstruction,
+        timeline_duration: float,
+        target_resolution: tuple[int, int],
+        fps: int,
+    ) -> tuple[Optional[mpe.VideoClip], Optional[TimelineClipModel]]:
+        clip = self._prepare_clip(instruction, target_resolution, fps)
+        timeline_start = self._resolve_attachment_start(instruction, timeline_duration, clip.duration)
+        clip, timeline_start = self._trim_attachment_to_timeline(clip, timeline_start, timeline_duration)
+        if clip is None:
+            return None, None
+
+        clip = self._apply_intro_transition(
+            clip,
+            instruction,
+            target_resolution,
+            transparent_background=True,
+        )
+        clip = self._apply_outro_transition(
+            clip,
+            instruction,
+            target_resolution,
+            transparent_background=True,
+        )
+
+        timeline_end = min(timeline_start + clip.duration, timeline_duration)
+        clip = clip.set_start(timeline_start).set_end(timeline_end)
+        timeline_item = TimelineClipModel(
+            index=index,
+            source=instruction.source,
+            start=round(max(timeline_start, 0.0), 1),
+            end=round(max(timeline_end, 0.0), 1),
+            auto_placed=self._is_auto_placed_attachment(instruction),
+        )
+        return clip, timeline_item
 
     def _concatenate_with_transitions(
             self,
@@ -987,9 +1188,14 @@ class VideoEngine:
         return base, timeline
 
     def _build_overlay(
-            self, duration: float, request: RenderRequest, target_resolution: tuple[int, int]
-    ) -> List[mpe.VideoClip]:
+            self,
+            duration: float,
+            request: RenderRequest,
+            target_resolution: tuple[int, int],
+            fps: int,
+    ) -> tuple[List[mpe.VideoClip], List[TimelineClipModel]]:
         overlays: List[mpe.VideoClip] = []
+        attachment_timeline: List[TimelineClipModel] = []
         for text in request.texts:
             clip = self._build_text_clip(text, duration, target_resolution)
             if clip:
@@ -998,7 +1204,13 @@ class VideoEngine:
             clip = self._build_image_clip(image, duration, target_resolution)
             if clip:
                 overlays.append(clip)
-        return overlays
+        for index, attachment in enumerate(request.attachments):
+            clip, timeline_item = self._build_attachment_clip(index, attachment, duration, target_resolution, fps)
+            if clip:
+                overlays.append(clip)
+            if timeline_item:
+                attachment_timeline.append(timeline_item)
+        return overlays, attachment_timeline
 
     @staticmethod
     def _color_to_rgba(color, default: tuple[int, int, int, int]) -> tuple[int, int, int, int]:
@@ -1736,14 +1948,22 @@ class VideoEngine:
                     str(concat_file),
                     "-map",
                     "0:v:0",
-                    "-map",
-                    "0:a:0",
                     "-dn",
                     "-map_metadata",
                     "-1",
                     "-c",
                     "copy",
                 ]
+                concat_has_audio = (
+                    request.output.include_audio
+                    and bool(normalized_files)
+                    and self._has_audio_stream(normalized_files[0])
+                )
+                if concat_has_audio:
+                    concat_copy_command += [
+                        "-map",
+                        "0:a:0?",
+                    ]
                 if extension in {"mp4", "mov"}:
                     concat_copy_command += ["-movflags", "+faststart"]
                 concat_copy_command.append(str(output_path))
@@ -1768,14 +1988,19 @@ class VideoEngine:
                         str(concat_file),
                         "-map",
                         "0:v:0",
-                        "-map",
-                        "0:a:0",
                         "-dn",
                         "-map_metadata",
                         "-1",
                         *self._build_fast_video_codec_args(request.output.bitrate, extension),
-                        *self._build_fast_audio_codec_args(),
                     ]
+                    if concat_has_audio:
+                        concat_encode_command += [
+                            "-map",
+                            "0:a:0?",
+                            *self._build_fast_audio_codec_args(),
+                        ]
+                    else:
+                        concat_encode_command += ["-an"]
                     if extension in {"mp4", "mov"}:
                         concat_encode_command += ["-movflags", "+faststart"]
                     concat_encode_command.append(str(output_path))
