@@ -4,7 +4,7 @@ from __future__ import annotations
 from datetime import datetime
 from enum import Enum
 from pathlib import Path
-from typing import List, Literal, Optional
+from typing import Any, List, Literal, Optional
 
 from pydantic import BaseModel, Field, root_validator, validator
 
@@ -73,6 +73,53 @@ class ColorModel(BaseModel):
         return (self.r, self.g, self.b)
 
 
+def _parse_color_value(value: Any) -> Any:
+    if isinstance(value, ColorModel) or isinstance(value, dict):
+        return value
+    if isinstance(value, (list, tuple)) and len(value) >= 3:
+        payload = {"r": value[0], "g": value[1], "b": value[2]}
+        if len(value) >= 4:
+            payload["a"] = value[3]
+        return payload
+    if not isinstance(value, str):
+        return value
+
+    color_text = value.strip().lower()
+    named_colors = {
+        "black": (0, 0, 0),
+        "blue": (0, 0, 255),
+        "cyan": (0, 255, 255),
+        "green": (0, 255, 0),
+        "lime": (0, 255, 0),
+        "magenta": (255, 0, 255),
+        "red": (255, 0, 0),
+        "white": (255, 255, 255),
+        "yellow": (255, 255, 0),
+    }
+    if color_text in named_colors:
+        r, g, b = named_colors[color_text]
+        return {"r": r, "g": g, "b": b, "a": 1.0}
+
+    if color_text.startswith("#"):
+        color_text = color_text[1:]
+    elif color_text.startswith("0x"):
+        color_text = color_text[2:]
+
+    if len(color_text) in {6, 8}:
+        try:
+            r = int(color_text[0:2], 16)
+            g = int(color_text[2:4], 16)
+            b = int(color_text[4:6], 16)
+            payload = {"r": r, "g": g, "b": b}
+            if len(color_text) == 8:
+                payload["a"] = int(color_text[6:8], 16) / 255.0
+            return payload
+        except ValueError:
+            return value
+
+    return value
+
+
 class ResolutionModel(BaseModel):
     width: int = Field(..., gt=0)
     height: int = Field(..., gt=0)
@@ -103,8 +150,65 @@ class TransitionInstruction(BaseModel):
 class ChromaKeyInstruction(BaseModel):
     enabled: bool = False
     color: ColorModel = Field(default_factory=lambda: ColorModel(r=0, g=255, b=0, a=1.0))
-    threshold: float = Field(0.1, ge=0.0)
-    softness: float = Field(0.0, ge=0.0)
+    similarity: float = Field(
+        0.1,
+        ge=0.0,
+        le=1.0,
+        description="FFmpeg-like key color radius. 0.01 is strict, 1.0 matches everything.",
+    )
+    blend: float = Field(
+        0.04,
+        ge=0.0,
+        le=1.0,
+        description="Soft alpha falloff outside similarity radius.",
+    )
+    edge_blur: float = Field(
+        0.75,
+        ge=0.0,
+        description="Gaussian blur radius for the generated alpha mask, in pixels.",
+    )
+    spill: float = Field(
+        0.0,
+        ge=0.0,
+        le=1.0,
+        description="Optional key-color spill reduction.",
+    )
+    threshold: Optional[float] = Field(
+        None,
+        ge=0.0,
+        le=1.0,
+        description="Deprecated alias for similarity.",
+    )
+    softness: Optional[float] = Field(
+        None,
+        ge=0.0,
+        le=1.0,
+        description="Deprecated alias for blend.",
+    )
+
+    @root_validator(pre=True)
+    def normalize_legacy_aliases(cls, values):
+        if not isinstance(values, dict):
+            return values
+        if "threshold" in values and "similarity" not in values:
+            values["similarity"] = values["threshold"]
+        if "softness" in values and "blend" not in values:
+            values["blend"] = values["softness"]
+        return values
+
+    @validator("color", pre=True)
+    def parse_color(cls, value):
+        return _parse_color_value(value)
+
+    @property
+    def effective_similarity(self) -> float:
+        value = self.threshold if self.threshold is not None else self.similarity
+        return max(0.0, min(float(value), 1.0))
+
+    @property
+    def effective_blend(self) -> float:
+        value = self.softness if self.softness is not None else self.blend
+        return max(0.0, min(float(value), 1.0))
 
 
 class AdjustmentInstruction(BaseModel):

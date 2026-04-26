@@ -125,7 +125,7 @@ Each entry represents a source video fragment.
 | `internal_zoom` | float | `0.0` | Alias for `reframe.center_zoom`. `0.08` means about 8% center zoom-in. |
 | `transitions_before` | array | `[]` | Transitions applied to the *start* of this clip (Intro). |
 | `transitions_after` | array | `[]` | Transitions applied *after* this clip (Between clips or Outro). |
-| `chroma_key` | object | disabled | `{ "enabled": true, "color": {"r":0,"g":255,"b":0}, "threshold":0.1, "softness":0.0 }`. |
+| `chroma_key` | object | disabled | Removes a color background by generating an alpha mask. See "Chroma Key Settings". |
 | `adjustments` | object | zeros | Fine tuning for brightness, contrast, saturation, hue (`-1.0`..`1.0`). |
 | `playback_rate` | float | `1.0` | Speed multiplier. |
 | `volume` | float | `1.0` | Linear multiplier. |
@@ -145,6 +145,43 @@ If both `start` and `end` are omitted in a clip object, the clip is appended aut
 
 Important:
 - `clips[].start` / `clips[].end` are source trim markers (what part of each source file to use), not absolute timeline coordinates.
+
+#### Chroma Key Settings
+
+`chroma_key` works on both `clips[]` and `attachments[]` / `inserts[]`. The controls follow FFmpeg `colorkey` semantics: `similarity` defines the fully transparent color radius, and `blend` defines the soft alpha falloff outside that radius.
+
+| Field | Type | Default | Description |
+| --- | --- | --- | --- |
+| `enabled` | bool | `false` | Enables color-key transparency. |
+| `color` | RGBA object or string | `green` | Key color to remove. Accepts `{ "r": 0, "g": 255, "b": 0 }`, `"#00ff00"`, `"0x00ff00"`, or common names such as `"green"`, `"blue"`, `"red"`. |
+| `similarity` | float `0.0..1.0` | `0.1` | FFmpeg-like color radius. Lower values are stricter; higher values remove more colors around the key color. |
+| `blend` | float `0.0..1.0` | `0.04` | Soft alpha falloff outside `similarity`. Higher values create smoother semi-transparent edges. |
+| `edge_blur` | float | `0.75` | Gaussian blur radius in pixels for the generated alpha mask. Use small values (`0.5..2`) to smooth jagged edges. |
+| `spill` | float `0.0..1.0` | `0.0` | Optional reduction of key-color spill on semi-transparent edge pixels. Useful for green/blue fringes. |
+| `threshold` | float `0.0..1.0` | `null` | Backward-compatible alias for `similarity`. |
+| `softness` | float `0.0..1.0` | `null` | Backward-compatible alias for `blend`. |
+
+Example:
+
+```json
+{
+  "source": "media/Chromakey_subscribe.mp4",
+  "at": 0.4,
+  "placement": "time",
+  "fit_mode": "contain",
+  "volume": 0,
+  "chroma_key": {
+    "enabled": true,
+    "color": "green",
+    "similarity": 0.12,
+    "blend": 0.06,
+    "edge_blur": 1.0,
+    "spill": 0.15
+  }
+}
+```
+
+When `fit_mode="contain"` and `chroma_key.enabled=true`, the engine keeps the padded canvas transparent instead of adding the normal blurred/color background. This prevents keyed inserts from carrying a green or blurred source-background rectangle into the final composite.
 
 ### Attachment / Insert Overlays
 

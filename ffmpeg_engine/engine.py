@@ -831,8 +831,6 @@ class VideoEngine:
         clip = self._apply_internal_zoom(clip, instruction)
         clip = self._apply_fit_mode(clip, instruction, target_resolution)
         clip = self._apply_adjustments(clip, instruction.adjustments)
-        if instruction.chroma_key.enabled:
-            clip = self._apply_chroma_key(clip, instruction)
 
         if instruction.volume != 1.0 and clip.audio is not None:
             clip = clip.volumex(instruction.volume)
@@ -875,11 +873,20 @@ class VideoEngine:
         if instruction.fit_mode == FitMode.COVER:
             scale = max(target_w / clip_w, target_h / clip_h)
             resized = clip.resize(scale)
-            return resized.crop(width=target_w, height=target_h, x_center=resized.w / 2, y_center=resized.h / 2)
+            fitted = resized.crop(width=target_w, height=target_h, x_center=resized.w / 2, y_center=resized.h / 2)
+            if instruction.chroma_key.enabled:
+                fitted = self._apply_chroma_key(fitted, instruction)
+            return fitted
 
         # contain
         scale = min(target_w / clip_w, target_h / clip_h)
         resized = clip.resize(scale)
+
+        if instruction.chroma_key.enabled:
+            keyed = self._apply_chroma_key(resized, instruction)
+            positioned = keyed.set_position("center")
+            composite = mpe.CompositeVideoClip([positioned], size=target_resolution)
+            return composite.set_duration(resized.duration)
 
         # Для contain нам нужно создать подложку (CompositeVideoClip), чтобы заполнить пустоты
         if instruction.background_mode == BackgroundMode.COLOR:
@@ -914,12 +921,99 @@ class VideoEngine:
                 pass
         return clip
 
+    @staticmethod
+    def _build_chroma_alpha(
+        frame: np.ndarray,
+        key_color: tuple[int, int, int],
+        similarity: float,
+        blend: float,
+        edge_blur: float,
+    ) -> np.ndarray:
+        if frame.ndim == 2:
+            rgb = np.repeat(frame[:, :, None], 3, axis=2)
+        else:
+            rgb = frame[:, :, :3]
+
+        max_value = (
+            1.0
+            if np.issubdtype(rgb.dtype, np.floating) and float(np.nanmax(rgb)) <= 1.0
+            else 255.0
+        )
+        rgb_norm = rgb.astype(np.float32) / max_value
+        key_norm = np.array(key_color, dtype=np.float32) / 255.0
+        distance = np.linalg.norm(rgb_norm - key_norm, axis=2) / math.sqrt(3.0)
+
+        similarity = max(float(similarity), 0.0)
+        blend = max(float(blend), 0.0)
+        if blend <= 1e-6:
+            alpha = (distance > similarity).astype(np.float32)
+        else:
+            alpha = np.clip((distance - similarity) / blend, 0.0, 1.0).astype(np.float32)
+
+        if edge_blur > 0:
+            alpha_image = Image.fromarray(np.uint8(np.clip(alpha, 0.0, 1.0) * 255), mode="L")
+            alpha = (
+                np.asarray(alpha_image.filter(ImageFilter.GaussianBlur(radius=edge_blur))).astype(np.float32)
+                / 255.0
+            )
+        return np.clip(alpha, 0.0, 1.0)
+
+    @staticmethod
+    def _apply_chroma_spill_reduction(
+        frame: np.ndarray,
+        alpha: np.ndarray,
+        key_color: tuple[int, int, int],
+        spill: float,
+    ) -> np.ndarray:
+        spill = max(0.0, min(float(spill), 1.0))
+        if spill <= 0.0 or frame.ndim < 3:
+            return frame
+
+        rgb = frame[:, :, :3].astype(np.float32)
+        key_channel = int(np.argmax(np.array(key_color, dtype=np.float32)))
+        other_channels = [channel for channel in range(3) if channel != key_channel]
+        other_max = np.max(rgb[:, :, other_channels], axis=2)
+        excess = np.maximum(rgb[:, :, key_channel] - other_max, 0.0)
+        proximity = (1.0 - np.clip(alpha, 0.0, 1.0)) * spill
+        rgb[:, :, key_channel] = np.maximum(rgb[:, :, key_channel] - excess * proximity, 0.0)
+
+        result = frame.copy()
+        result[:, :, :3] = np.clip(rgb, 0.0, 255.0).astype(frame.dtype)
+        return result
+
     def _apply_chroma_key(self, clip: mpe.VideoClip, instruction: ClipInstruction) -> mpe.VideoClip:
         key = instruction.chroma_key
         try:
-            mask = clip.fx(vfx.mask_color, color=key.color.as_tuple(), thr=key.threshold, s=key.softness)
-            return clip.set_mask(mask.mask)
-        except Exception:
+            key_color = key.color.as_tuple()
+            similarity = key.effective_similarity
+            blend = key.effective_blend
+            edge_blur = float(key.edge_blur or 0.0)
+            base_mask = clip.mask
+            source_clip = clip
+
+            def make_mask_frame(t):
+                frame = source_clip.get_frame(t)
+                alpha = self._build_chroma_alpha(frame, key_color, similarity, blend, edge_blur)
+                if base_mask is not None:
+                    existing_alpha = base_mask.get_frame(t)
+                    if existing_alpha.ndim == 3:
+                        existing_alpha = existing_alpha[:, :, 0]
+                    alpha = alpha * np.clip(existing_alpha.astype(np.float32), 0.0, 1.0)
+                return alpha
+
+            mask = mpe.VideoClip(make_frame=make_mask_frame, ismask=True).set_duration(clip.duration)
+            keyed = clip.set_mask(mask)
+            if key.spill > 0.0:
+
+                def filter_frame(get_frame, t):
+                    frame = get_frame(t)
+                    alpha = mask.get_frame(t)
+                    return self._apply_chroma_spill_reduction(frame, alpha, key_color, key.spill)
+
+                keyed = keyed.fl(filter_frame)
+            return keyed
+        except Exception as exc:
+            logger.warning("Chroma key failed for %s: %s", instruction.source, exc)
             return clip
 
     def _apply_intro_transition(

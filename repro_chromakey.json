@@ -1,0 +1,40 @@
+{
+  "clips": [
+    {
+      "source": "media/14705086_1080_1920_30fps.mp4",
+      "start": 0,
+      "end": 4.5,
+      "fit_mode": "cover"
+    }
+  ],
+  "inserts": [
+    {
+      "source": "media/Chromakey_subscribe.mp4",
+      "start": 0,
+      "end": 4,
+      "at": 0.4,
+      "placement": "time",
+      "fit_mode": "contain",
+      "volume": 0,
+      "chroma_key": {
+        "enabled": true,
+        "color": "green",
+        "similarity": 0.12,
+        "blend": 0.06,
+        "edge_blur": 1.0,
+        "spill": 0.15
+      }
+    }
+  ],
+  "detail_answer": true,
+  "output": {
+    "filename": "chromakey_subscribe_test.mp4",
+    "format": "mp4",
+    "fps": 14,
+    "bitrate": "1M",
+    "resolution": {
+      "width": 540,
+      "height": 960
+    }
+  }
+}
