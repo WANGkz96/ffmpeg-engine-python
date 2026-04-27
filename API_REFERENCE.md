@@ -264,7 +264,7 @@ Used in `transitions_before` and `transitions_after`.
 | `start` | float | `0.0` | Start time. |
 | `end` | float | video duration | End time. |
 | `position` | enum | `center` | `center`, `top`, `bottom`, `left`, `right`, `top_left`, `top_right`, `bottom_left`, `bottom_right`. |
-| `font` | string | `DejaVu-Sans` | Must be available on host. |
+| `font` | string | `DejaVu-Sans` | Font family/style name or file name. The engine resolves direct file names, installed system fonts from `FFMPEG_FONT_DIRS` / default OS font directories, and bundled fallbacks. |
 | `font_size` | int | `48` | Font size in px. |
 | `bottom_offset_px` | int | `null` | Bottom offset in px for `bottom`, `bottom_left`, `bottom_right`. When omitted, the default bottom margin is used. |
 | `color` | RGBA | white | Text color. |
@@ -274,6 +274,13 @@ Used in `transitions_before` and `transitions_after`.
 | `glow` | bool | `false` | If `true`, apply glow (requires font raster support). |
 | `max_width` | int | `null` | Force wrapping width. |
 | `animation` | object | defaults | `{"fade_in":0.3,"fade_out":0.3,"letter_spacing":null}`. |
+
+Font resolution notes:
+
+- Request fonts by name, for example `"font": "DejaVu-Sans"`, `"font": "Arial"`, `"font": "Arial Bold"`, or `"font": "Comic Sans MS"`.
+- On Windows host runs, the engine scans `C:/Windows/Fonts` and `%LOCALAPPDATA%/Microsoft/Windows/Fonts`.
+- In Docker Compose, `C:/Windows/Fonts` is mounted read-only to `/system_fonts/windows` by default and included in `FFMPEG_FONT_DIRS`.
+- To use another host font folder in Docker, set `SYSTEM_FONTS_HOST_PATH` or override `FFMPEG_FONT_DIRS`.
 
 ### Image Overlays (PNG etc.)
 

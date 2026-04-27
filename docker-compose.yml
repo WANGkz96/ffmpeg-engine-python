@@ -17,6 +17,8 @@ services:
       - CORS_ALLOW_ORIGINS=${CORS_ALLOW_ORIGINS:-*}
       - NVIDIA_VISIBLE_DEVICES=${NVIDIA_VISIBLE_DEVICES:-all}
       - NVIDIA_DRIVER_CAPABILITIES=${NVIDIA_DRIVER_CAPABILITIES:-compute,utility,video}
+      # Directories scanned when resolving texts[].font by installed font name.
+      - FFMPEG_FONT_DIRS=${FFMPEG_FONT_DIRS:-/system_fonts/windows:/usr/share/fonts:/usr/local/share/fonts}
       # Host absolute path remapping for JSON source paths (optional).
       # Format: SRC_PREFIX=DST_PREFIX;SRC2=DST2
       - MEDIA_PATH_MAPPINGS=${MEDIA_PATH_MAPPINGS:-}
@@ -24,6 +26,8 @@ services:
       # Mount source code so changes on host are visible in container.
       - ./:/app
       - ./media:/app/media:ro
+      # Windows system fonts, read-only. Override SYSTEM_FONTS_HOST_PATH if needed.
+      - ${SYSTEM_FONTS_HOST_PATH:-C:/Windows/Fonts}:/system_fonts/windows:ro
       # Optional extra host media root for absolute-path mapping.
       - ${EXTRA_MEDIA_HOST_PATH:-./media}:${EXTRA_MEDIA_CONTAINER_PATH:-/external_media}:ro
       - ./renders:/app/renders

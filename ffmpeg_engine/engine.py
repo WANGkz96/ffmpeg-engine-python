@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import gc
+from functools import lru_cache
 import logging
 import math
 import os
@@ -43,6 +44,112 @@ if not hasattr(vfx, "gaussian_blur"):
 logger = logging.getLogger(__name__)
 
 # --- Monkey patch or helper functions ---
+
+SUPPORTED_FONT_EXTENSIONS = {".ttf", ".otf", ".ttc", ".otc"}
+
+
+def _normalize_font_lookup_name(value: str) -> str:
+    name = (value or "").strip().replace("\\", "/").split("/")[-1]
+    suffix = Path(name).suffix.lower()
+    if suffix in SUPPORTED_FONT_EXTENSIONS:
+        name = Path(name).stem
+    return "".join(ch for ch in name.lower() if ch.isalnum())
+
+
+def _split_font_dirs(value: str) -> list[str]:
+    if not value:
+        return []
+    separator = ";" if ";" in value else os.pathsep
+    return [item.strip() for item in value.split(separator) if item.strip()]
+
+
+def _iter_system_font_dirs() -> list[Path]:
+    raw_dirs = _split_font_dirs(os.getenv("FFMPEG_FONT_DIRS", ""))
+    default_dirs: list[str] = []
+    if os.name == "nt":
+        windir = os.getenv("WINDIR", r"C:\Windows")
+        local_app_data = os.getenv("LOCALAPPDATA", "")
+        default_dirs.append(str(Path(windir) / "Fonts"))
+        if local_app_data:
+            default_dirs.append(str(Path(local_app_data) / "Microsoft" / "Windows" / "Fonts"))
+    else:
+        default_dirs.extend(
+            [
+                "/system_fonts/windows",
+                "/usr/share/fonts",
+                "/usr/local/share/fonts",
+                str(Path.home() / ".fonts"),
+                str(Path.home() / ".local" / "share" / "fonts"),
+            ]
+        )
+
+    seen: set[Path] = set()
+    font_dirs: list[Path] = []
+    for raw_dir in [*raw_dirs, *default_dirs]:
+        font_dir = Path(raw_dir).expanduser()
+        try:
+            resolved = font_dir.resolve()
+        except Exception:
+            resolved = font_dir
+        if resolved in seen or not font_dir.exists() or not font_dir.is_dir():
+            continue
+        seen.add(resolved)
+        font_dirs.append(font_dir)
+    return font_dirs
+
+
+def _font_style_priority(style: str) -> int:
+    normalized = _normalize_font_lookup_name(style)
+    if normalized in {"regular", "normal", "book", "roman"}:
+        return 0
+    if "regular" in normalized or "normal" in normalized:
+        return 1
+    return 10
+
+
+def _register_font_candidate(
+    index: dict[str, tuple[int, tuple[str, int]]],
+    key: str,
+    candidate: tuple[str, int],
+    priority: int,
+) -> None:
+    normalized_key = _normalize_font_lookup_name(key)
+    if not normalized_key:
+        return
+    current = index.get(normalized_key)
+    if current is None or priority < current[0]:
+        index[normalized_key] = (priority, candidate)
+
+
+@lru_cache(maxsize=1)
+def _build_system_font_index() -> dict[str, tuple[str, int]]:
+    indexed: dict[str, tuple[int, tuple[str, int]]] = {}
+    for font_dir in _iter_system_font_dirs():
+        try:
+            font_paths = list(font_dir.rglob("*"))
+        except Exception:
+            continue
+        for font_path in font_paths:
+            if not font_path.is_file() or font_path.suffix.lower() not in SUPPORTED_FONT_EXTENSIONS:
+                continue
+            face_indexes = range(0, 16) if font_path.suffix.lower() in {".ttc", ".otc"} else range(0, 1)
+            for face_index in face_indexes:
+                try:
+                    font = ImageFont.truetype(str(font_path), 12, index=face_index)
+                    family, style = font.getname()
+                except Exception:
+                    if face_index == 0:
+                        continue
+                    break
+
+                candidate = (str(font_path), face_index)
+                style_priority = _font_style_priority(style)
+                _register_font_candidate(indexed, family, candidate, style_priority)
+                _register_font_candidate(indexed, f"{family} {style}", candidate, 0)
+                _register_font_candidate(indexed, f"{family}-{style}", candidate, 0)
+                _register_font_candidate(indexed, font_path.stem, candidate, 5 + style_priority)
+
+    return {key: value for key, (_, value) in indexed.items()}
 
 def _normalize_motion_blur_kernel(strength: float) -> int:
     k_size = int(strength)
@@ -1314,7 +1421,7 @@ class VideoEngine:
         return (int(color.r), int(color.g), int(color.b), alpha)
 
     def _resolve_pillow_font(self, instruction: TextInstruction) -> ImageFont.FreeTypeFont | ImageFont.ImageFont:
-        font_candidates: List[str] = []
+        font_candidates: List[object] = []
         bundled_fonts_dir = Path(__file__).resolve().parent / "fonts"
         comic_regular = bundled_fonts_dir / "ComicNeue-Regular.ttf"
         comic_bold = bundled_fonts_dir / "ComicNeue-Bold.ttf"
@@ -1347,19 +1454,32 @@ class VideoEngine:
         font_name = (instruction.font or "").strip()
         if font_name:
             font_candidates.append(font_name)
+            system_font = _build_system_font_index().get(_normalize_font_lookup_name(font_name))
+            if system_font:
+                font_candidates.append(system_font)
             alias = font_aliases.get(font_name)
             if alias:
                 font_candidates.append(alias)
             lowered = font_name.lower()
             if "comic sans" in lowered or lowered == "comicsans":
-                font_candidates.extend([str(comic_ms_bold), str(comic_ms_regular), str(comic_bold), str(comic_regular)])
+                font_candidates.extend(
+                    [
+                        str(comic_ms_bold),
+                        str(comic_ms_regular),
+                        str(comic_bold),
+                        str(comic_regular),
+                    ]
+                )
 
         for candidate in font_candidates:
             if not candidate:
                 continue
             try:
-                return ImageFont.truetype(candidate, instruction.font_size)
-            except Exception:
+                if isinstance(candidate, tuple):
+                    return ImageFont.truetype(candidate[0], instruction.font_size, index=candidate[1])
+                return ImageFont.truetype(str(candidate), instruction.font_size)
+            except Exception as exc:
+                logger.debug("Unable to load font candidate %r: %s", candidate, exc)
                 continue
 
         try:
