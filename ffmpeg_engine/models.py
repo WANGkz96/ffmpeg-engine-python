@@ -21,6 +21,32 @@ def clamp_internal_zoom(value) -> float:
     return max(0.0, min(numeric, MAX_INTERNAL_ZOOM))
 
 
+def parse_percent_value(value, default: float = 0.0) -> float:
+    if value is None:
+        return default
+    if isinstance(value, str):
+        text = value.strip()
+        if not text:
+            return default
+        is_percent = text.endswith("%")
+        if is_percent:
+            text = text[:-1].strip()
+        try:
+            numeric = float(text)
+        except ValueError:
+            return default
+        if is_percent or numeric > 1.0:
+            numeric /= 100.0
+        return numeric
+    try:
+        numeric = float(value)
+    except (TypeError, ValueError):
+        return default
+    if numeric > 1.0:
+        numeric /= 100.0
+    return numeric
+
+
 class FitMode(str, Enum):
     """How to fit the source clip inside the template frame."""
 
@@ -329,6 +355,20 @@ class ImageInstruction(BaseModel):
     animation: ImageAnimationInstruction = Field(default_factory=ImageAnimationInstruction)
 
 
+class ZoomBorderInstruction(BaseModel):
+    width: int = Field(4, ge=1)
+    color: ColorModel = Field(default_factory=lambda: ColorModel(r=255, g=0, b=0, a=1.0))
+    zoom: float = Field(0.2, ge=0.0, lt=1.0)
+
+    @validator("color", pre=True)
+    def parse_color(cls, value):
+        return _parse_color_value(value)
+
+    @validator("zoom", pre=True, always=True)
+    def parse_zoom(cls, value):
+        return max(0.0, min(parse_percent_value(value, default=0.2), 0.95))
+
+
 class OutputInstruction(BaseModel):
     template: Optional[str] = None
     resolution: Optional[ResolutionModel] = None
@@ -355,6 +395,7 @@ class RenderRequest(BaseModel):
     audio: List[AudioInstruction] = Field(default_factory=list)
     texts: List[TextInstruction] = Field(default_factory=list)
     images: List[ImageInstruction] = Field(default_factory=list)
+    zoom_border: Optional[ZoomBorderInstruction] = None
     detail_answer: bool = False
 
     @root_validator(pre=True)

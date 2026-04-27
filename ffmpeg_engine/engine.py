@@ -23,7 +23,7 @@ import moviepy.editor as mpe
 from moviepy.video.fx import all as vfx
 from moviepy.config import change_settings
 import numpy as np
-from PIL import ImageChops, ImageDraw, ImageFilter, ImageFont
+from PIL import ImageDraw, ImageFilter, ImageFont
 
 change_settings({
     "IMAGEMAGICK_BINARY": "magick",
@@ -76,6 +76,7 @@ def _iter_system_font_dirs() -> list[Path]:
         default_dirs.extend(
             [
                 "/system_fonts/windows",
+                "/system_fonts/windows_user",
                 "/usr/share/fonts",
                 "/usr/local/share/fonts",
                 str(Path.home() / ".fonts"),
@@ -293,6 +294,7 @@ from .models import (
     TransitionInstruction,
     TransitionType,
     TransitionDirection,
+    ZoomBorderInstruction,
 )
 from .templates import resolve_template
 
@@ -973,6 +975,25 @@ class VideoEngine:
         crop_h = f"trunc(ih/{zoom_factor:.6f}/2)*2"
         return f"crop={crop_w}:{crop_h}:(iw-ow)/2:(ih-oh)/2"
 
+    @staticmethod
+    def _color_to_ffmpeg(color) -> str:
+        if not color:
+            return "red@1"
+        alpha = max(min(float(getattr(color, "a", 1.0)), 1.0), 0.0)
+        return f"0x{int(color.r):02x}{int(color.g):02x}{int(color.b):02x}@{alpha:.3f}"
+
+    def _build_zoom_border_filter(
+        self,
+        instruction: Optional[ZoomBorderInstruction],
+        target_resolution: tuple[int, int],
+    ) -> Optional[str]:
+        if instruction is None:
+            return None
+        x, y, box_w, box_h = self._resolve_zoom_border_box(instruction, target_resolution)
+        line_width = max(int(instruction.width), 1)
+        color = self._color_to_ffmpeg(instruction.color)
+        return f"drawbox=x={x}:y={y}:w={box_w}:h={box_h}:color={color}:t={line_width}"
+
     def _apply_fit_mode(self, clip: mpe.VideoClip, instruction: ClipInstruction, target_resolution: tuple[int, int]) -> mpe.VideoClip:
         target_w, target_h = target_resolution
         clip_w, clip_h = clip.size
@@ -1411,6 +1432,9 @@ class VideoEngine:
                 overlays.append(clip)
             if timeline_item:
                 attachment_timeline.append(timeline_item)
+        zoom_border = self._build_zoom_border_clip(request.zoom_border, duration, target_resolution)
+        if zoom_border:
+            overlays.append(zoom_border)
         return overlays, attachment_timeline
 
     @staticmethod
@@ -1419,6 +1443,49 @@ class VideoEngine:
             return default
         alpha = int(max(min(getattr(color, "a", 1.0), 1.0), 0.0) * 255)
         return (int(color.r), int(color.g), int(color.b), alpha)
+
+    @staticmethod
+    def _resolve_zoom_border_box(
+        instruction: ZoomBorderInstruction,
+        target_resolution: tuple[int, int],
+    ) -> tuple[int, int, int, int]:
+        target_w, target_h = target_resolution
+        zoom = max(0.0, min(float(instruction.zoom or 0.0), 0.95))
+        zoom_factor = 1.0 + zoom
+        box_w = max(int(round(target_w / zoom_factor)), int(instruction.width))
+        box_h = max(int(round(target_h / zoom_factor)), int(instruction.width))
+        box_w = min(box_w, target_w)
+        box_h = min(box_h, target_h)
+        x = max((target_w - box_w) // 2, 0)
+        y = max((target_h - box_h) // 2, 0)
+        return x, y, box_w, box_h
+
+    def _build_zoom_border_clip(
+        self,
+        instruction: Optional[ZoomBorderInstruction],
+        duration: float,
+        target_resolution: tuple[int, int],
+    ) -> Optional[mpe.VideoClip]:
+        if instruction is None or duration <= 0:
+            return None
+
+        target_w, target_h = target_resolution
+        x, y, box_w, box_h = self._resolve_zoom_border_box(instruction, target_resolution)
+        line_width = max(int(instruction.width), 1)
+        image = Image.new("RGBA", (target_w, target_h), (0, 0, 0, 0))
+        draw = ImageDraw.Draw(image)
+        color = self._color_to_rgba(instruction.color, (255, 0, 0, 255))
+        half = line_width // 2
+        x0 = min(max(x + half, 0), target_w - 1)
+        y0 = min(max(y + half, 0), target_h - 1)
+        x1 = min(max(x + box_w - 1 - half, 0), target_w - 1)
+        y1 = min(max(y + box_h - 1 - half, 0), target_h - 1)
+        if x1 <= x0 or y1 <= y0:
+            return None
+
+        draw.rectangle((x0, y0, x1, y1), outline=color, width=line_width)
+        frame = np.array(image)
+        return mpe.ImageClip(frame).set_duration(duration).set_position((0, 0))
 
     def _resolve_pillow_font(self, instruction: TextInstruction) -> ImageFont.FreeTypeFont | ImageFont.ImageFont:
         font_candidates: List[object] = []
@@ -1578,7 +1645,7 @@ class VideoEngine:
             probe_draw,
             text_block,
             font,
-            0,
+            stroke_width,
             line_spacing,
         )
 
@@ -1587,78 +1654,72 @@ class VideoEngine:
         scale_guard = max(scale_from, scale_to, 1.0)
         scale_margin = max(0, int(max(text_w, text_h) * (scale_guard - 1.0) * 0.55))
 
-        pad_x = max(16, int(instruction.font_size * 0.32) + stroke_width * 2 + scale_margin)
-        pad_y = max(14, int(instruction.font_size * 0.34) + stroke_width * 2 + scale_margin)
+        effect_margin = 0
+        if instruction.glow:
+            effect_margin = max(effect_margin, int(instruction.font_size * 0.22))
+        if instruction.shadow:
+            effect_margin = max(effect_margin, int(instruction.font_size * 0.14) + 6)
+
+        pad_x = max(16, int(instruction.font_size * 0.32) + stroke_width * 2 + scale_margin + effect_margin)
+        pad_y = max(14, int(instruction.font_size * 0.34) + stroke_width * 2 + scale_margin + effect_margin)
         img_w = max(1, text_w + pad_x * 2)
         img_h = max(1, text_h + pad_y * 2)
 
         image = Image.new("RGBA", (img_w, img_h), (0, 0, 0, 0))
-        draw = ImageDraw.Draw(image)
         text_color = self._color_to_rgba(instruction.color, (255, 255, 255, 255))
         stroke_color = self._color_to_rgba(instruction.stroke_color, (0, 0, 0, 255))
+        render_stroke_width = stroke_width if stroke_color[3] > 0 else 0
         text_origin = (
             int((img_w - text_w) / 2 - text_bbox[0]),
             int((img_h - text_h) / 2 - text_bbox[1]),
         )
 
-        if instruction.glow:
-            glow_layer = Image.new("RGBA", (img_w, img_h), (0, 0, 0, 0))
-            glow_draw = ImageDraw.Draw(glow_layer)
-            glow_color = (
-                min(text_color[0] + 20, 255),
-                min(text_color[1] + 20, 255),
-                min(text_color[2] + 20, 255),
-                max(120, int(text_color[3] * 0.55)),
-            )
-            glow_draw.multiline_text(
-                text_origin,
-                text_block,
-                font=font,
-                fill=glow_color,
-                align="center",
-                spacing=line_spacing,
-                stroke_width=stroke_width + 2,
-                stroke_fill=glow_color,
-            )
-            blur_radius = max(2, int(instruction.font_size * 0.12))
-            image.alpha_composite(glow_layer.filter(ImageFilter.GaussianBlur(radius=blur_radius)))
-
         if instruction.shadow:
-            shadow_alpha = max(90, int(text_color[3] * 0.6))
-            draw.multiline_text(
-                (text_origin[0] + 3, text_origin[1] + 3),
+            shadow_layer = Image.new("RGBA", (img_w, img_h), (0, 0, 0, 0))
+            shadow_draw = ImageDraw.Draw(shadow_layer)
+            shadow_offset = max(2, int(instruction.font_size * 0.06))
+            shadow_alpha = max(90, int(text_color[3] * 0.65))
+            shadow_draw.multiline_text(
+                (text_origin[0] + shadow_offset, text_origin[1] + shadow_offset),
                 text_block,
                 font=font,
                 fill=(0, 0, 0, shadow_alpha),
                 align="center",
                 spacing=line_spacing,
-                stroke_width=0,
+                stroke_width=stroke_width,
+                stroke_fill=(0, 0, 0, shadow_alpha),
             )
+            shadow_blur = max(1, int(instruction.font_size * 0.035))
+            image.alpha_composite(shadow_layer.filter(ImageFilter.GaussianBlur(radius=shadow_blur)))
 
-        if stroke_width > 0 and stroke_color[3] > 0:
-            fill_mask = Image.new("L", (img_w, img_h), 0)
-            fill_draw = ImageDraw.Draw(fill_mask)
-            fill_draw.multiline_text(
+        if instruction.glow:
+            glow_mask = Image.new("L", (img_w, img_h), 0)
+            glow_draw = ImageDraw.Draw(glow_mask)
+            glow_stroke = max(stroke_width, 1)
+            glow_draw.multiline_text(
                 text_origin,
                 text_block,
                 font=font,
                 fill=255,
                 align="center",
                 spacing=line_spacing,
-                stroke_width=0,
+                stroke_width=glow_stroke,
+                stroke_fill=255,
             )
-            kernel_size = max(3, stroke_width * 2 + 1)
-            max_kernel = max(3, min(img_w, img_h))
-            if max_kernel % 2 == 0:
-                max_kernel -= 1
-            kernel_size = min(kernel_size, max_kernel)
-            if kernel_size % 2 == 0:
-                kernel_size = max(3, kernel_size - 1)
-            dilated_mask = fill_mask.filter(ImageFilter.MaxFilter(size=kernel_size))
-            outer_stroke_mask = ImageChops.subtract(dilated_mask, fill_mask)
-            stroke_layer = Image.new("RGBA", (img_w, img_h), stroke_color)
-            image.paste(stroke_layer, (0, 0), outer_stroke_mask)
+            glow_color = (
+                text_color[0],
+                text_color[1],
+                text_color[2],
+                max(120, int(text_color[3] * 0.75)),
+            )
+            blur_radius = max(3, int(instruction.font_size * 0.12))
+            spread_radius = max(2, int(instruction.font_size * 0.05))
+            glow_alpha = glow_mask.filter(ImageFilter.MaxFilter(size=spread_radius * 2 + 1))
+            glow_alpha = glow_alpha.filter(ImageFilter.GaussianBlur(radius=blur_radius))
+            glow_layer = Image.new("RGBA", (img_w, img_h), glow_color)
+            image.paste(glow_layer, (0, 0), glow_alpha)
 
+        draw = ImageDraw.Draw(image)
         draw.multiline_text(
             text_origin,
             text_block,
@@ -1666,7 +1727,8 @@ class VideoEngine:
             fill=text_color,
             align="center",
             spacing=line_spacing,
-            stroke_width=0,
+            stroke_width=render_stroke_width,
+            stroke_fill=stroke_color,
         )
 
         frame = np.array(image)
@@ -1677,26 +1739,27 @@ class VideoEngine:
         if end_time <= instruction.start:
             return None
 
-        font_arg = str(instruction.font_path) if getattr(instruction, "font_path", None) else instruction.font
-
         try:
-            clip = mpe.TextClip(
-                instruction.content,
-                fontsize=instruction.font_size,
-                font=font_arg,
-                color=self._color_to_hex(instruction.color),
-                stroke_color=self._color_to_hex(instruction.stroke_color) if instruction.stroke_color else None,
-                stroke_width=instruction.stroke_width,
-                method="caption" if instruction.max_width else "label",
-                size=(instruction.max_width, None) if instruction.max_width else None,
-            )
+            clip = self._build_text_clip_with_pillow(instruction, target_resolution)
         except Exception as exc:
-            logger.warning("TextClip rendering failed (%s); trying Pillow fallback", exc)
+            logger.warning("Pillow text rendering failed (%s); trying TextClip fallback", exc)
+            font_arg = str(instruction.font_path) if getattr(instruction, "font_path", None) else instruction.font
             try:
-                clip = self._build_text_clip_with_pillow(instruction, target_resolution)
+                clip = mpe.TextClip(
+                    instruction.content,
+                    fontsize=instruction.font_size,
+                    font=font_arg,
+                    color=self._color_to_hex(instruction.color),
+                    stroke_color=self._color_to_hex(instruction.stroke_color) if instruction.stroke_color else None,
+                    stroke_width=instruction.stroke_width,
+                    method="caption" if instruction.max_width else "label",
+                    size=(instruction.max_width, None) if instruction.max_width else None,
+                )
             except Exception as fallback_exc:
-                logger.warning("Pillow text rendering failed (%s); skipping", fallback_exc)
+                logger.warning("TextClip fallback rendering failed (%s); skipping", fallback_exc)
                 return None
+        if clip is None:
+            return None
 
         clip_duration = max(end_time - instruction.start, 0.001)
         clip = clip.set_duration(clip_duration)
@@ -2018,6 +2081,7 @@ class VideoEngine:
         target_fps: int,
         bitrate: Optional[str],
         include_audio: bool,
+        zoom_border: Optional[ZoomBorderInstruction] = None,
     ) -> None:
         target_w, target_h = target_resolution
         start = max(instruction.start, 0.0)
@@ -2029,15 +2093,27 @@ class VideoEngine:
         zoom_filter = self._build_center_zoom_filter(instruction.effective_internal_zoom)
         if zoom_filter:
             vf_parts.append(zoom_filter)
-        vf_parts.extend(
-            [
-                f"fps={target_fps}",
-                f"scale={target_w}:{target_h}:force_original_aspect_ratio=decrease:force_divisible_by=2",
-                f"pad={target_w}:{target_h}:(ow-iw)/2:(oh-ih)/2:color=black",
-                "setsar=1",
-                "format=yuv420p",
-            ]
-        )
+        vf_parts.append(f"fps={target_fps}")
+        if instruction.fit_mode == FitMode.COVER:
+            vf_parts.extend(
+                [
+                    f"scale={target_w}:{target_h}:force_original_aspect_ratio=increase:force_divisible_by=2",
+                    f"crop={target_w}:{target_h}:(iw-ow)/2:(ih-oh)/2",
+                    "setsar=1",
+                ]
+            )
+        else:
+            vf_parts.extend(
+                [
+                    f"scale={target_w}:{target_h}:force_original_aspect_ratio=decrease:force_divisible_by=2",
+                    f"pad={target_w}:{target_h}:(ow-iw)/2:(oh-ih)/2:color=black",
+                    "setsar=1",
+                ]
+            )
+        zoom_border_filter = self._build_zoom_border_filter(zoom_border, target_resolution)
+        if zoom_border_filter:
+            vf_parts.append(zoom_border_filter)
+        vf_parts.append("format=yuv420p")
         vf_chain = ",".join(vf_parts)
         source_has_audio = include_audio and self._has_audio_stream(source_path)
         command = [
@@ -2123,6 +2199,7 @@ class VideoEngine:
                         target_fps=request.output.fps,
                         bitrate=request.output.bitrate,
                         include_audio=request.output.include_audio,
+                        zoom_border=request.zoom_border,
                     )
                     clip_duration = self._probe_duration_seconds(normalized_path)
                     clip_start = cursor

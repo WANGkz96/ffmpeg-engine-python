@@ -1,0 +1,24 @@
+{
+  "mode": "concat_normalize",
+  "detail_answer": true,
+  "clips": [
+    {
+      "source": "media/8348370-uhd_4096_2160_30fps.mp4",
+      "fit_mode": "cover"
+    }
+  ],
+  "zoom_border": {
+    "width": 4,
+    "color": "red",
+    "zoom": "20%"
+  },
+  "output": {
+    "format": "mp4",
+    "fps": 2,
+    "filename": "repro_zoom_border_cover.mp4",
+    "resolution": {
+      "width": 854,
+      "height": 480
+    }
+  }
+}

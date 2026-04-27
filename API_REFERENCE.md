@@ -60,6 +60,7 @@ High-level structure:
   "mode": "render",
   "output": { ... },
   "clips": [ ... ],
+  "zoom_border": { ... },
   "attachments": [ ... ],
   "audio": [ ... ],
   "texts": [ ... ],
@@ -108,6 +109,26 @@ Default `mp4` / `mov` export profile:
 - Audio: AAC-LC, 48 kHz, stereo, 128 kbps
 
 These defaults are chosen for broad compatibility with browsers, mobile devices, and common video platforms.
+
+### Zoom Border
+
+`zoom_border` is an optional global overlay that draws a centered frame showing the area left after applying the same zoom factor as `internal_zoom`. It is applied on top of the final video in `mode=render` and baked into normalized clips in `mode=concat_normalize`.
+
+| Field | Type | Default | Description |
+| --- | --- | --- | --- |
+| `width` | integer | `4` | Border line width in pixels. |
+| `color` | RGBA object or string | `red` | Border color. Accepts names such as `"red"`, hex strings such as `"#ff0000"`, or `{ "r": 255, "g": 0, "b": 0 }`. |
+| `zoom` | float/string | `0.2` | Zoom value using the same semantics as `internal_zoom`. Accepts `0.2`, `20`, or `"20%"`; all mean a visible rectangle sized to `1 / 1.2 = 83.33%` of output width and height. |
+
+Example:
+
+```json
+"zoom_border": {
+  "width": 4,
+  "color": "red",
+  "zoom": "20%"
+}
+```
 
 ### Clip Instructions
 
@@ -279,7 +300,7 @@ Font resolution notes:
 
 - Request fonts by name, for example `"font": "DejaVu-Sans"`, `"font": "Arial"`, `"font": "Arial Bold"`, or `"font": "Comic Sans MS"`.
 - On Windows host runs, the engine scans `C:/Windows/Fonts` and `%LOCALAPPDATA%/Microsoft/Windows/Fonts`.
-- In Docker Compose, `C:/Windows/Fonts` is mounted read-only to `/system_fonts/windows` by default and included in `FFMPEG_FONT_DIRS`.
+- In Docker Compose, `C:/Windows/Fonts` and `%LOCALAPPDATA%/Microsoft/Windows/Fonts` are mounted read-only to `/system_fonts/windows` and `/system_fonts/windows_user` by default and included in `FFMPEG_FONT_DIRS`.
 - To use another host font folder in Docker, set `SYSTEM_FONTS_HOST_PATH` or override `FFMPEG_FONT_DIRS`.
 
 ### Image Overlays (PNG etc.)

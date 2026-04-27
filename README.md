@@ -66,6 +66,7 @@ See [API_REFERENCE.md](API_REFERENCE.md) for the full payload specification and 
 The compose file mounts:
 - `./media` -> `/app/media` (read-only source assets)
 - `${SYSTEM_FONTS_HOST_PATH:-C:/Windows/Fonts}` -> `/system_fonts/windows` (read-only system fonts for `texts[].font` name lookup)
+- `${USER_FONTS_HOST_PATH:-${LOCALAPPDATA}/Microsoft/Windows/Fonts}` -> `/system_fonts/windows_user` (read-only per-user fonts)
 - `${EXTRA_MEDIA_HOST_PATH:-./media}` -> `${EXTRA_MEDIA_CONTAINER_PATH:-/external_media}` (optional external source root for host absolute paths)
 - `./renders` -> `/app/renders` (render output)
 
@@ -75,7 +76,7 @@ Performance knobs:
 - `FFMPEG_USE_GPU=1` enables NVENC for output encoding when available. This is already enabled in the current container.
 - `FFMPEG_THREADS` controls FFmpeg encoder/worker threads. Default in compose: `8`.
 - `FFMPEG_FILTER_THREADS` controls FFmpeg filter graph threads. Default in compose: `8`.
-- `FFMPEG_FONT_DIRS` controls font folders scanned for `texts[].font` lookup. Default in compose: `/system_fonts/windows:/usr/share/fonts:/usr/local/share/fonts`.
+- `FFMPEG_FONT_DIRS` controls font folders scanned for `texts[].font` lookup. Default in compose: `/system_fonts/windows:/system_fonts/windows_user:/usr/share/fonts:/usr/local/share/fonts`.
 - Requests targeting the same output filename are still serialized to avoid two renders writing to the same file at once.
 - `mode=render` now runs inside isolated subprocess workers instead of the FastAPI process, so multiple render requests can use multiple CPU cores and a single render crash is less likely to take down the whole API.
 - If the client disconnects while a queued/running job is waiting inside the API, the server attempts to cancel the corresponding worker process.

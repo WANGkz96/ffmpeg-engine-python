@@ -1,0 +1,53 @@
+{
+  "mode": "render",
+  "detail_answer": true,
+  "clips": [
+    {
+      "source": "media/8348370-uhd_4096_2160_30fps.mp4",
+      "start": 0,
+      "end": 3,
+      "fit_mode": "cover"
+    }
+  ],
+  "texts": [
+    {
+      "end": 3,
+      "font": "Philosopher",
+      "glow": true,
+      "color": {
+        "a": 1,
+        "b": 255,
+        "g": 255,
+        "r": 255
+      },
+      "start": 0,
+      "shadow": false,
+      "content": "Delta of Costa Rica, these",
+      "position": "bottom",
+      "animation": {
+        "fade_in": 0.08,
+        "fade_out": 0.08
+      },
+      "font_size": 48,
+      "max_width": 768,
+      "stroke_color": {
+        "a": 0.9,
+        "b": 0,
+        "g": 0,
+        "r": 0
+      },
+      "stroke_width": 4,
+      "bottom_offset_px": 100
+    }
+  ],
+  "output": {
+    "format": "mp4",
+    "fps": 10,
+    "filename": "repro_philosopher_text.mp4",
+    "resolution": {
+      "width": 854,
+      "height": 480
+    },
+    "bitrate": "1M"
+  }
+}

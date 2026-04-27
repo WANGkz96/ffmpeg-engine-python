@@ -7,23 +7,13 @@
       },
       {
         "source": "/external_media/20260316_002436_904/original/When_the_Sahara_Was_Green [ZQP-7BPvvq0].mp4"
-      },
-      {
-        "source": "/external_media/20260316_002436_904/original/Rock_Art_in_the_Green_Sahara [HD_Ot2GaCXo].mp4"
-      },
-      {
-        "source": "/external_media/20260316_002436_904/original/Tassili_n_Ajjer_UNESCO_NHK [dEtnJHeocKg].mp4"
-      },
-      {
-        "source": "/external_media/20260316_002436_904/original/Rock-Art_Sites_of_Tadrart_Acacus_UNESCO_NHK [C_OxZpaOShg].mp4"
-      },
-      {
-        "source": "/external_media/20260316_002436_904/original/The_Forgotten_Civilization_Beneath_the_Sahara_Desert [QdMJDAC4Qh4].mp4"
-      },
-      {
-        "source": "/external_media/20260316_002436_904/original/How_Earth_s_Wobbles_Influence_Our_Climate [jPLr4BNY4Wc].mp4"
       }
     ],
+    "zoom_border": {
+      "width": 4,
+      "color": "red",
+      "zoom": "20%"
+    },
     "output": {
       "format": "mp4",
       "fps": 2,
