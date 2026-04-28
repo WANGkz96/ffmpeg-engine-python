@@ -2298,11 +2298,50 @@ class VideoEngine:
                     self._run_external_command(concat_encode_command, "FFmpeg concat fallback encode")
 
             final_duration = self._probe_duration_seconds(output_path)
+            if request.texts:
+                self._apply_concat_text_overlays(output_path, request, target_resolution, final_duration)
+                final_duration = self._probe_duration_seconds(output_path)
             timeline = TimelineDetailModel(clips=timeline_entries)
             return RenderResult(status="ok", duration=final_duration, output=output_path, timeline=timeline)
         except Exception as exc:
             logger.exception("concat_normalize failed: %s", exc)
             return RenderResult(status="error", duration=0.0, output=Path(""), message=str(exc))
+
+    def _apply_concat_text_overlays(
+        self,
+        output_path: Path,
+        request: RenderRequest,
+        target_resolution: tuple[int, int],
+        duration: float,
+    ) -> None:
+        overlays: list[mpe.VideoClip] = []
+        for text in request.texts:
+            clip = self._build_text_clip(text, duration, target_resolution)
+            if clip:
+                overlays.append(clip)
+        if not overlays:
+            return
+
+        source_clip = mpe.VideoFileClip(str(output_path))
+        final_clip: mpe.VideoClip | None = None
+        temp_output = output_path.with_name(f"{output_path.stem}.text_overlay.tmp{output_path.suffix}")
+        try:
+            final_clip = mpe.CompositeVideoClip([source_clip, *overlays], size=target_resolution).set_duration(duration)
+            if source_clip.audio is not None:
+                final_clip = final_clip.set_audio(source_clip.audio)
+
+            model_copy = getattr(request, "model_copy", None)
+            overlay_request = model_copy(deep=True) if callable(model_copy) else request.copy(deep=True)
+            overlay_request.output.filename = temp_output.name
+            self._export(final_clip, overlay_request)
+        finally:
+            if final_clip is not None:
+                final_clip.close()
+            source_clip.close()
+            for overlay in overlays:
+                overlay.close()
+
+        os.replace(temp_output, output_path)
 
     def _export(self, clip: mpe.VideoClip, request: RenderRequest) -> Path:
         output_path = self._resolve_output_path(request)
