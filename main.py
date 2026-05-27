@@ -172,26 +172,33 @@ def _build_json_payload(request: Request, result: RenderResult, detail_answer: b
     if detail_answer:
         timeline_clips = result.timeline.clips if result.timeline else []
         timeline_attachments = result.timeline.attachments if result.timeline else []
+        timeline_inserts = result.timeline.inserts if result.timeline else []
+        timeline_channels = result.timeline.channels if result.timeline else []
+
+        def serialize_timeline_clip(clip):
+            payload = {
+                "index": clip.index,
+                "source": str(clip.source),
+                "start": round(clip.start, 1),
+                "end": round(clip.end, 1),
+                "auto_placed": clip.auto_placed,
+            }
+            if clip.channel_id is not None:
+                payload["channel_id"] = clip.channel_id
+            if clip.kind:
+                payload["kind"] = clip.kind
+            return payload
+
         payload["timeline"] = {
-            "clips": [
+            "clips": [serialize_timeline_clip(clip) for clip in timeline_clips],
+            "attachments": [serialize_timeline_clip(clip) for clip in timeline_attachments],
+            "inserts": [serialize_timeline_clip(clip) for clip in timeline_inserts],
+            "channels": [
                 {
-                    "index": clip.index,
-                    "source": str(clip.source),
-                    "start": round(clip.start, 1),
-                    "end": round(clip.end, 1),
-                    "auto_placed": clip.auto_placed,
+                    "channel_id": channel.channel_id,
+                    "clips": [serialize_timeline_clip(clip) for clip in channel.clips],
                 }
-                for clip in timeline_clips
-            ],
-            "attachments": [
-                {
-                    "index": clip.index,
-                    "source": str(clip.source),
-                    "start": round(clip.start, 1),
-                    "end": round(clip.end, 1),
-                    "auto_placed": clip.auto_placed,
-                }
-                for clip in timeline_attachments
+                for channel in timeline_channels
             ],
             "total_duration": round(result.duration, 1),
         }

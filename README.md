@@ -5,12 +5,13 @@ HTTP-based video rendering microservice powered by FastAPI, MoviePy, and FFmpeg.
 ## Features
 
 - Aspect ratio templates for popular platforms (YouTube, TikTok, Instagram, Stories).
-- Timeline instructions supporting clip trimming, auto-fit modes (cover/contain), background blur or solid color, and optional chroma key.
-- Auto-append clip placement when `start` and `end` are omitted in clip instructions.
+- Timeline instructions supporting ordered channels, clip trimming, `at` placement, auto-fit modes (cover/contain), background blur or solid color, and optional chroma key.
+- Auto-append clip placement when `at` is omitted in channel clip instructions.
 - Crossfade and fade-to-black transitions.
 - Color adjustments (brightness, contrast, saturation, hue).
 - Audio mixing with precise start/end trimming, fades, and volume controls.
 - Text and PNG overlays with positioning, animation, and basic keyframe scaling.
+- Optional `show_source` debug overlay for displaying the active source filename.
 - JSON detail mode (`detail_answer`) with per-clip timeline start/end values.
 - Download endpoint (`/downloads/...`) and absolute output file paths in JSON responses.
 - Safe defaults for incomplete output settings (`format=mp4`, `fps=30`, datetime filename, `1920x1080` fallback resolution).

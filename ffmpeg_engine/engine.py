@@ -288,6 +288,8 @@ from .models import (
     ProcessingMode,
     RenderRequest,
     RenderResult,
+    ShowSourceInstruction,
+    TimelineChannelModel,
     TimelineClipModel,
     TimelineDetailModel,
     TextInstruction,
@@ -455,11 +457,22 @@ class VideoEngine:
         return (Path.cwd() / path_obj).resolve()
 
     @staticmethod
-    def _is_auto_placed_instruction(instruction: ClipInstruction) -> bool:
+    def _get_instruction_fields_set(instruction: ClipInstruction) -> set[str]:
         fields_set = getattr(instruction, "model_fields_set", None)
         if fields_set is None:
             fields_set = getattr(instruction, "__fields_set__", set())
-        return "start" not in fields_set and "end" not in fields_set
+        return set(fields_set or set())
+
+    @classmethod
+    def _has_explicit_at(cls, instruction: ClipInstruction) -> bool:
+        return "at" in cls._get_instruction_fields_set(instruction) and getattr(instruction, "at", None) is not None
+
+    @classmethod
+    def _is_auto_placed_instruction(cls, instruction: ClipInstruction) -> bool:
+        placement = getattr(instruction, "placement", InsertPlacement.TIME)
+        if placement != InsertPlacement.TIME:
+            return True
+        return not cls._has_explicit_at(instruction)
 
     # --- ВСПОМОГАТЕЛЬНЫЕ МЕТОДЫ ДЛЯ WHIP PAN ---
 
@@ -869,6 +882,7 @@ class VideoEngine:
         template = resolve_template(request.output.template)
         target_resolution = request.output.resolution.size if request.output.resolution else template.resolution
         logger.info("Using target resolution %s", target_resolution)
+        return self._render_channels(request, target_resolution)
 
         clips = []
         final_clip = None
@@ -902,9 +916,12 @@ class VideoEngine:
             final_clip = mpe.CompositeVideoClip([video, *overlay], size=target_resolution)
 
             # Аудио
-            audio = self._build_audio(request, final_clip.duration)
-            if audio is not None:
-                final_clip = final_clip.set_audio(audio)
+            if request.output.include_audio:
+                audio = self._build_audio(request, final_clip.duration)
+                if audio is not None:
+                    final_clip = final_clip.set_audio(audio)
+            else:
+                final_clip = final_clip.without_audio()
 
             output_path = self._export(final_clip, request)
         except Exception as exc:
@@ -916,26 +933,112 @@ class VideoEngine:
 
         return RenderResult(status="ok", duration=final_clip.duration, output=output_path, timeline=timeline)
 
-    def _prepare_clip(self, instruction: ClipInstruction, target_resolution: tuple[int, int], fps: int) -> mpe.VideoClip:
+    def _render_channels(self, request: RenderRequest, target_resolution: tuple[int, int]) -> RenderResult:
+        final_clip = None
+        audio = None
+        overlay: List[mpe.VideoClip] = []
+        channel_layers: List[mpe.VideoClip] = []
+        channel_resources: List[mpe.VideoClip] = []
+        output_path = Path("")
+        timeline = TimelineDetailModel(clips=[], attachments=[], inserts=[], channels=[])
+        try:
+            channels = self._collect_timeline_channels(request)
+            if not channels:
+                raise VideoEngineError("No clips provided in the request")
+
+            lower_duration = 0.0
+            for channel_id in sorted(channels):
+                channel_clip, channel_timeline, resources = self._build_timeline_channel(
+                    channel_id,
+                    channels[channel_id],
+                    target_resolution,
+                    request.output.fps,
+                    reference_duration=lower_duration,
+                )
+                channel_resources.extend(resources)
+                if channel_clip is None:
+                    continue
+
+                channel_layers.append(channel_clip)
+                lower_duration = max(lower_duration, float(channel_clip.duration or 0.0))
+                timeline.channels.append(TimelineChannelModel(channel_id=channel_id, clips=channel_timeline))
+                for timeline_item in channel_timeline:
+                    if timeline_item.kind == "clip":
+                        timeline.clips.append(timeline_item)
+                    elif timeline_item.kind == "attachment":
+                        timeline.attachments.append(timeline_item)
+                    elif timeline_item.kind == "insert":
+                        timeline.inserts.append(timeline_item)
+
+            if not channel_layers:
+                raise VideoEngineError("No clips provided in the request")
+
+            timeline_duration = max((float(layer.duration or 0.0) for layer in channel_layers), default=0.0)
+            text_image_overlay, zoom_overlay = self._build_global_overlays(
+                timeline_duration,
+                request,
+                target_resolution,
+                timeline,
+            )
+            overlay = [*text_image_overlay, *zoom_overlay]
+
+            final_layers = self._order_final_layers(channel_layers, text_image_overlay, zoom_overlay)
+            final_clip = mpe.CompositeVideoClip(final_layers, size=target_resolution).set_duration(timeline_duration)
+
+            if request.output.include_audio:
+                audio = self._build_audio(request, final_clip.duration)
+                if audio is not None:
+                    final_clip = final_clip.set_audio(audio)
+            else:
+                final_clip = final_clip.without_audio()
+
+            output_path = self._export(final_clip, request)
+        except Exception as exc:
+            logger.exception("Rendering failed: %s", exc)
+            return RenderResult(status="error", duration=0.0, output=Path(""), message=str(exc))
+        finally:
+            self._close_clip_resources([final_clip, audio, *overlay, *channel_layers, *channel_resources])
+            gc.collect()
+
+        return RenderResult(status="ok", duration=final_clip.duration, output=output_path, timeline=timeline)
+
+    def _prepare_clip(
+        self,
+        instruction: ClipInstruction,
+        target_resolution: tuple[int, int],
+        fps: int,
+        transition_padding: float = 0.0,
+    ) -> mpe.VideoClip:
         source_path = self._resolve_media_path(instruction.source)
         if not source_path.exists():
             raise VideoEngineError(f"Clip source not found: {source_path}")
 
         clip = mpe.VideoFileClip(str(source_path))
         start = max(instruction.start, 0.0)
-        end = instruction.end if instruction.end else None
-        if end is not None:
-            end = min(end, clip.duration)
-        if end and end <= start:
-            end = None
+        end = instruction.end if instruction.end else clip.duration
+        end = min(end, clip.duration)
+        if end <= start:
+            end = clip.duration
 
-        if end:
-            clip = clip.subclip(start, end)
-        else:
-            clip = clip.subclip(start)
+        playback_rate = max(float(instruction.playback_rate or 1.0), 1e-6)
+        transition_padding = max(float(transition_padding or 0.0), 0.0)
+        base_output_duration = max(end - start, 0.0) / playback_rate
+        target_output_duration = base_output_duration + transition_padding
 
-        if instruction.playback_rate != 1.0:
-            clip = clip.fx(vfx.speedx, instruction.playback_rate)
+        raw_padding_needed = transition_padding * playback_rate
+        extend_before = min(raw_padding_needed, start)
+        raw_padding_remaining = max(raw_padding_needed - extend_before, 0.0)
+        extend_after = min(raw_padding_remaining, max(clip.duration - end, 0.0))
+        trim_start = max(start - extend_before, 0.0)
+        trim_end = min(end + extend_after, clip.duration)
+
+        clip = clip.subclip(trim_start, trim_end)
+
+        if playback_rate != 1.0:
+            clip = clip.fx(vfx.speedx, playback_rate)
+        if transition_padding > 0.0 and clip.duration < target_output_duration - 1e-6:
+            speed_factor = max(clip.duration / target_output_duration, 1e-6)
+            clip = clip.fx(vfx.speedx, speed_factor)
 
         clip = self._apply_internal_zoom(clip, instruction)
         clip = self._apply_fit_mode(clip, instruction, target_resolution)
@@ -1202,7 +1305,7 @@ class VideoEngine:
             return 0.0
         if instruction.placement == InsertPlacement.END:
             return timeline_duration - clip_duration
-        return max(instruction.at, 0.0)
+        return max(instruction.at or 0.0, 0.0)
 
     @staticmethod
     def _trim_attachment_to_timeline(
@@ -1231,10 +1334,234 @@ class VideoEngine:
     def _is_auto_placed_attachment(instruction: InsertInstruction) -> bool:
         if instruction.placement != InsertPlacement.TIME:
             return True
-        fields_set = getattr(instruction, "model_fields_set", None)
-        if fields_set is None:
-            fields_set = getattr(instruction, "__fields_set__", set())
-        return "at" not in fields_set
+        return not VideoEngine._has_explicit_at(instruction)
+
+    def _collect_timeline_channels(self, request: RenderRequest) -> dict[int, list[tuple[str, int, ClipInstruction, bool]]]:
+        channels: dict[int, list[tuple[str, int, ClipInstruction, bool]]] = {}
+
+        def add(channel_id: int, kind: str, index: int, instruction: ClipInstruction, trim_to_reference: bool) -> None:
+            channels.setdefault(int(channel_id), []).append((kind, index, instruction, trim_to_reference))
+
+        for index, instruction in enumerate(request.clips):
+            add(1, "clip", index, instruction, False)
+        for index, instruction in enumerate(request.attachments):
+            add(10, "attachment", index, instruction, True)
+        for index, instruction in enumerate(request.inserts):
+            add(11, "insert", index, instruction, True)
+
+        if request.timeline:
+            for channel in request.timeline.channels:
+                for index, instruction in enumerate(channel.clips):
+                    add(channel.channel_id, "timeline", index, instruction, False)
+
+        return {channel_id: entries for channel_id, entries in channels.items() if entries}
+
+    @staticmethod
+    def _resolve_channel_base_start(
+        instruction: ClipInstruction,
+        cursor: float,
+        clip_duration: float,
+        reference_duration: float,
+    ) -> float:
+        placement = getattr(instruction, "placement", InsertPlacement.TIME)
+        if placement == InsertPlacement.START:
+            return 0.0
+        if placement == InsertPlacement.END:
+            return max(reference_duration - clip_duration, 0.0)
+        if VideoEngine._has_explicit_at(instruction):
+            return max(float(instruction.at or 0.0), 0.0)
+        return max(cursor, 0.0)
+
+    def _apply_between_transition(
+        self,
+        scheduled: list[tuple[mpe.VideoClip, float]],
+        clip: mpe.VideoClip,
+        transition: Optional[TransitionInstruction],
+        base_start: float,
+        target_resolution: tuple[int, int],
+        transition_overlap: float = 0.0,
+    ) -> tuple[mpe.VideoClip, float]:
+        if not transition:
+            return clip, base_start
+
+        if transition.type == TransitionType.CROSSFADE:
+            duration = min(transition_overlap or transition.duration, clip.duration / 2)
+            clip = clip.crossfadein(duration)
+            start = max(base_start - duration, 0.0)
+            return clip, start
+
+        if transition.type == TransitionType.FADE_BLACK:
+            duration = min(transition.duration, clip.duration)
+            if scheduled:
+                prev_clip, prev_start = scheduled[-1]
+                scheduled[-1] = (prev_clip.fadeout(duration), prev_start)
+            return clip.fadein(duration), base_start
+
+        if transition.type == TransitionType.WHIP_PAN and scheduled:
+            prev_clip, prev_start = scheduled[-1]
+            new_prev, new_clip, overlap = self._apply_whip_pan_between(prev_clip, clip, transition, target_resolution)
+            scheduled[-1] = (new_prev, prev_start)
+            start = max(base_start - overlap, 0.0)
+            return new_clip, start
+
+        if transition.type == TransitionType.MOTION_BLUR and scheduled:
+            prev_clip, prev_start = scheduled[-1]
+            new_prev, new_clip, overlap = self._apply_motion_blur_between(prev_clip, clip, transition, target_resolution)
+            scheduled[-1] = (new_prev, prev_start)
+            start = max(base_start - overlap, 0.0)
+            return new_clip, start
+
+        return clip, base_start
+
+    @staticmethod
+    def _trim_scheduled_clip_to_reference(
+        clip: mpe.VideoClip,
+        start: float,
+        reference_duration: float,
+    ) -> Optional[mpe.VideoClip]:
+        if reference_duration <= 0.0:
+            return None
+        if start >= reference_duration:
+            return None
+        visible_duration = min(float(clip.duration or 0.0), reference_duration - start)
+        if visible_duration <= 0.0:
+            return None
+        if visible_duration < float(clip.duration or 0.0):
+            return clip.subclip(0, visible_duration)
+        return clip
+
+    def _get_instruction_output_duration(self, instruction: ClipInstruction) -> float:
+        source_path = self._resolve_media_path(instruction.source)
+        source_duration = self._probe_duration_seconds(source_path)
+        start = max(float(instruction.start or 0.0), 0.0)
+        end = instruction.end if instruction.end else source_duration
+        end = min(float(end), source_duration)
+        if end <= start:
+            end = source_duration
+        raw_duration = max(end - start, 0.0)
+        return raw_duration / max(float(instruction.playback_rate or 1.0), 1e-6)
+
+    def _get_transition_padding(
+        self,
+        transition: Optional[TransitionInstruction],
+        previous_clip: Optional[mpe.VideoClip],
+        instruction: ClipInstruction,
+    ) -> float:
+        if not transition or previous_clip is None:
+            return 0.0
+        requested = max(float(transition.duration or 0.0), 0.0)
+        if requested <= 0.0:
+            return 0.0
+
+        previous_duration = max(float(previous_clip.duration or 0.0), 0.0)
+        if transition.type == TransitionType.CROSSFADE:
+            # crossfadein() is capped to half of the resulting clip duration, so
+            # base_duration is the largest overlap that remains stable after padding.
+            base_duration = self._get_instruction_output_duration(instruction)
+            return max(min(requested, previous_duration, base_duration), 0.0)
+        if transition.type == TransitionType.WHIP_PAN:
+            return max(min(requested, previous_duration), 0.0)
+        if transition.type == TransitionType.MOTION_BLUR and transition.fade:
+            return max(min(requested, previous_duration), 0.0)
+        return 0.0
+
+    def _build_timeline_channel(
+        self,
+        channel_id: int,
+        entries: list[tuple[str, int, ClipInstruction, bool]],
+        target_resolution: tuple[int, int],
+        fps: int,
+        reference_duration: float,
+    ) -> tuple[Optional[mpe.VideoClip], list[TimelineClipModel], list[mpe.VideoClip]]:
+        scheduled: list[tuple[mpe.VideoClip, float]] = []
+        scheduled_instructions: list[ClipInstruction] = []
+        timeline: list[TimelineClipModel] = []
+        resources: list[mpe.VideoClip] = []
+        cursor = 0.0
+
+        for entry_index, (kind, source_index, instruction, trim_to_reference) in enumerate(entries):
+            transition = None
+            if entry_index > 0:
+                prev_instruction = entries[entry_index - 1][2]
+                if prev_instruction.transitions_after:
+                    transition = prev_instruction.transitions_after[0]
+            previous_clip = scheduled[-1][0] if scheduled else None
+            transition_padding = self._get_transition_padding(transition, previous_clip, instruction)
+
+            clip = self._prepare_clip(instruction, target_resolution, fps, transition_padding=transition_padding)
+            resources.append(clip)
+
+            if instruction.transitions_before:
+                clip = self._apply_intro_transition(
+                    clip,
+                    instruction,
+                    target_resolution,
+                    transparent_background=channel_id > 1,
+                )
+
+            base_start = self._resolve_channel_base_start(
+                instruction,
+                cursor,
+                max(float(clip.duration or 0.0) - transition_padding, 0.0),
+                reference_duration,
+            )
+
+            clip, start = self._apply_between_transition(
+                scheduled,
+                clip,
+                transition,
+                base_start,
+                target_resolution,
+                transition_overlap=transition_padding,
+            )
+
+            if trim_to_reference:
+                trimmed = self._trim_scheduled_clip_to_reference(clip, start, reference_duration)
+                if trimmed is None:
+                    continue
+                if trimmed is not clip:
+                    clip = trimmed
+                    resources.append(clip)
+
+            end = start + float(clip.duration or 0.0)
+            scheduled.append((clip, start))
+            scheduled_instructions.append(instruction)
+            cursor = max(cursor, end)
+            timeline.append(
+                TimelineClipModel(
+                    index=source_index,
+                    source=instruction.source,
+                    start=round(max(start, 0.0), 1),
+                    end=round(max(end, 0.0), 1),
+                    auto_placed=self._is_auto_placed_instruction(instruction),
+                    channel_id=channel_id,
+                    kind=kind,
+                )
+            )
+
+        if scheduled:
+            last_instruction = scheduled_instructions[-1]
+            if last_instruction.transitions_after:
+                outro = last_instruction.transitions_after[0]
+                last_clip, last_start = scheduled[-1]
+                last_clip = self._apply_outro_transition(
+                    last_clip,
+                    last_instruction,
+                    target_resolution,
+                    transparent_background=channel_id > 1,
+                )
+                scheduled[-1] = (last_clip, last_start)
+                if timeline:
+                    timeline[-1].end = round(max(last_start + float(last_clip.duration or 0.0), 0.0), 1)
+                cursor = max(cursor, last_start + float(last_clip.duration or 0.0))
+
+        if not scheduled:
+            return None, [], resources
+
+        layered = [clip.set_start(start) for clip, start in scheduled]
+        channel_clip = mpe.CompositeVideoClip(layered, size=target_resolution).set_duration(cursor)
+        setattr(channel_clip, "_ffmpeg_engine_channel_id", channel_id)
+        return channel_clip, timeline, resources
 
     def _build_attachment_clip(
         self,
@@ -1436,6 +1763,126 @@ class VideoEngine:
         if zoom_border:
             overlays.append(zoom_border)
         return overlays, attachment_timeline
+
+    def _build_global_overlays(
+        self,
+        duration: float,
+        request: RenderRequest,
+        target_resolution: tuple[int, int],
+        timeline: Optional[TimelineDetailModel] = None,
+    ) -> tuple[list[mpe.VideoClip], list[mpe.VideoClip]]:
+        text_image_overlays: list[mpe.VideoClip] = []
+        zoom_overlays: list[mpe.VideoClip] = []
+        for text in request.texts:
+            clip = self._build_text_clip(text, duration, target_resolution)
+            if clip:
+                text_image_overlays.append(clip)
+        for image in request.images:
+            clip = self._build_image_clip(image, duration, target_resolution)
+            if clip:
+                text_image_overlays.append(clip)
+        show_source_clips = self._build_show_source_clips(request.show_source, timeline, duration, target_resolution)
+        zoom_overlays.extend(show_source_clips)
+        zoom_border = self._build_zoom_border_clip(request.zoom_border, duration, target_resolution)
+        if zoom_border:
+            zoom_overlays.append(zoom_border)
+        return text_image_overlays, zoom_overlays
+
+    @staticmethod
+    def _order_final_layers(
+        channel_layers: list[mpe.VideoClip],
+        text_image_overlays: list[mpe.VideoClip],
+        zoom_overlays: list[mpe.VideoClip],
+    ) -> list[mpe.VideoClip]:
+        below_text = []
+        above_text = []
+        for layer in channel_layers:
+            channel_id = int(getattr(layer, "_ffmpeg_engine_channel_id", 1))
+            if channel_id < 10:
+                below_text.append(layer)
+            else:
+                above_text.append(layer)
+        return [*below_text, *text_image_overlays, *above_text, *zoom_overlays]
+
+    @staticmethod
+    def _collect_show_source_timeline(timeline: Optional[TimelineDetailModel]) -> list[TimelineClipModel]:
+        if timeline is None:
+            return []
+        for channel in timeline.channels:
+            if channel.channel_id == 1 and channel.clips:
+                return list(channel.clips)
+        return list(timeline.clips)
+
+    def _build_show_source_clips(
+        self,
+        instruction: Optional[ShowSourceInstruction],
+        timeline: Optional[TimelineDetailModel],
+        duration: float,
+        target_resolution: tuple[int, int],
+    ) -> list[mpe.VideoClip]:
+        if instruction is None or duration <= 0:
+            return []
+
+        overlays: list[mpe.VideoClip] = []
+        margin_x = 14
+        margin_y = 8
+        font_probe = TextInstruction(content="source", font=instruction.font, font_size=instruction.size)
+        font = self._resolve_pillow_font(font_probe)
+        stroke_width = max(1, int(round(instruction.size * 0.08)))
+        max_width = max(target_resolution[0] - margin_x * 2, 1)
+        fill = self._color_to_rgba(instruction.color, (255, 0, 0, 255))
+        stroke_fill = (0, 0, 0, 220)
+        probe = Image.new("RGBA", (1, 1), (0, 0, 0, 0))
+        probe_draw = ImageDraw.Draw(probe)
+
+        def fit_label(raw_label: str) -> tuple[str, tuple[int, int, int, int]]:
+            label = raw_label
+            bbox = probe_draw.textbbox((0, 0), label or " ", font=font, stroke_width=stroke_width)
+            if bbox[2] - bbox[0] <= max_width:
+                return label, bbox
+
+            prefix = "Source: "
+            basename = raw_label[len(prefix):] if raw_label.startswith(prefix) else raw_label
+            suffix = Path(basename).suffix
+            stem = Path(basename).stem or basename
+            for keep in range(len(stem), 3, -1):
+                candidate = f"{prefix}{stem[:keep]}...{suffix}"
+                bbox = probe_draw.textbbox((0, 0), candidate, font=font, stroke_width=stroke_width)
+                if bbox[2] - bbox[0] <= max_width:
+                    return candidate, bbox
+            fallback = f"{prefix}...{suffix}" if suffix else f"{prefix}..."
+            bbox = probe_draw.textbbox((0, 0), fallback, font=font, stroke_width=stroke_width)
+            return fallback, bbox
+
+        for item in self._collect_show_source_timeline(timeline):
+            start = max(float(item.start), 0.0)
+            end = min(max(float(item.end), start), duration)
+            if end <= start:
+                continue
+            label, bbox = fit_label(f"Source: {Path(item.source).name}")
+            pad = stroke_width + 2
+            label_w = max(bbox[2] - bbox[0], 1)
+            label_h = max(bbox[3] - bbox[1], 1)
+            image = Image.new("RGBA", (label_w + pad * 2, label_h + pad * 2), (0, 0, 0, 0))
+            draw = ImageDraw.Draw(image)
+            draw.text(
+                (pad - bbox[0], pad - bbox[1]),
+                label,
+                font=font,
+                fill=fill,
+                stroke_width=stroke_width,
+                stroke_fill=stroke_fill,
+            )
+            frame = np.array(image)
+            clip = (
+                mpe.ImageClip(frame, transparent=True)
+                .set_duration(max(end - start, 0.001))
+                .set_start(start)
+                .set_end(end)
+                .set_position((margin_x, margin_y))
+            )
+            overlays.append(clip)
+        return overlays
 
     @staticmethod
     def _color_to_rgba(color, default: tuple[int, int, int, int]) -> tuple[int, int, int, int]:
@@ -1876,6 +2323,9 @@ class VideoEngine:
             if not source_path.exists():
                 logger.warning("Audio source not found: %s", source_path)
                 continue
+            if not self._has_audio_stream(source_path):
+                logger.warning("Audio source has no audio stream: %s", source_path)
+                continue
             try:
                 clip = mpe.AudioFileClip(str(source_path))
             except OSError as exc:
@@ -1893,12 +2343,125 @@ class VideoEngine:
                 clip = clip.audio_fadein(instruction.fade_in)
             if instruction.fade_out:
                 clip = clip.audio_fadeout(instruction.fade_out)
+            clip = self._guard_audio_clip_bounds(clip)
             clip = clip.set_start(start)
             tracks.append(clip)
+
+        tracks.extend(self._build_insert_audio_tracks(request.attachments, duration, "attachment"))
+        tracks.extend(self._build_insert_audio_tracks(request.inserts, duration, "insert"))
 
         if not tracks:
             return None
         return mpe.CompositeAudioClip(tracks).set_duration(duration)
+
+    def _build_insert_audio_tracks(
+        self,
+        instructions: Iterable[InsertInstruction],
+        timeline_duration: float,
+        label: str,
+    ) -> List[mpe.AudioClip]:
+        tracks: List[mpe.AudioClip] = []
+        for index, instruction in enumerate(instructions):
+            volume = float(instruction.volume or 0.0)
+            if volume <= 0.0:
+                continue
+
+            source_path = self._resolve_media_path(instruction.source)
+            if not source_path.exists():
+                logger.warning("%s audio source not found: %s", label.title(), source_path)
+                continue
+            if not self._has_audio_stream(source_path):
+                logger.info("%s audio source has no audio stream: %s", label.title(), source_path)
+                continue
+
+            try:
+                audio_clip = mpe.AudioFileClip(str(source_path))
+            except OSError as exc:
+                logger.warning("%s audio loading failed (%s): %s", label.title(), source_path, exc)
+                continue
+
+            source_start = max(float(instruction.start or 0.0), 0.0)
+            source_end = float(instruction.end) if instruction.end else float(audio_clip.duration or 0.0)
+            source_end = min(source_end, float(audio_clip.duration or 0.0))
+            if source_end <= source_start:
+                audio_clip.close()
+                continue
+
+            source_duration = source_end - source_start
+            timeline_start = self._resolve_attachment_start(instruction, timeline_duration, source_duration)
+            if timeline_start < 0.0:
+                source_start += -timeline_start
+                timeline_start = 0.0
+
+            remaining_duration = max(timeline_duration - timeline_start, 0.0)
+            if remaining_duration <= 0.0 or source_start >= source_end:
+                audio_clip.close()
+                continue
+
+            source_end = min(source_end, source_start + remaining_duration)
+            if source_end <= source_start:
+                audio_clip.close()
+                continue
+
+            try:
+                track = audio_clip.subclip(source_start, source_end).volumex(volume)
+                if instruction.fade_in:
+                    track = track.audio_fadein(instruction.fade_in)
+                if instruction.fade_out:
+                    track = track.audio_fadeout(instruction.fade_out)
+                track = self._guard_audio_clip_bounds(track).set_start(timeline_start)
+            except Exception as exc:
+                audio_clip.close()
+                logger.warning("%s audio track failed (%s #%s): %s", label.title(), source_path, index, exc)
+                continue
+            tracks.append(track)
+
+        return tracks
+
+    @staticmethod
+    def _guard_audio_clip_bounds(clip: mpe.AudioClip) -> mpe.AudioClip:
+        """Return silence when MoviePy probes slightly outside a clip.
+
+        CompositeAudioClip can request a timestamp vector that crosses the start
+        of a delayed insert. AudioFileClip readers then receive small negative
+        local timestamps and crash before the inactive samples are masked out.
+        """
+        duration = max(float(clip.duration or 0.0), 0.0)
+        if duration <= 0.0:
+            return clip
+
+        fps = getattr(clip, "fps", None) or 44100
+        probe_time = min(duration / 2.0, max(duration - 1e-6, 0.0))
+        try:
+            probe = np.asarray(clip.get_frame(probe_time))
+            channels = int(probe.shape[-1]) if probe.ndim > 0 else 1
+        except Exception:
+            channels = int(getattr(clip, "nchannels", 2) or 2)
+
+        def make_frame(t):
+            times = np.asarray(t)
+            max_time = max(duration - 1e-6, 0.0)
+            if times.ndim == 0:
+                value = float(times)
+                if value < 0.0 or value >= duration:
+                    return np.zeros(channels, dtype=float)
+                return clip.get_frame(min(max(value, 0.0), max_time))
+
+            valid = (times >= 0.0) & (times < duration)
+            safe_times = np.clip(times, 0.0, max_time)
+            frames = np.asarray(clip.get_frame(safe_times)).copy()
+            if frames.ndim == 1:
+                frames[~valid] = 0.0
+            else:
+                frames[~valid, ...] = 0.0
+            return frames
+
+        guarded = mpe.AudioClip(make_frame=make_frame, duration=duration, fps=fps)
+        try:
+            guarded.nchannels = channels
+        except Exception:
+            pass
+        return guarded
 
     def _resolve_output_path(self, request: RenderRequest) -> Path:
         self.workspace.mkdir(parents=True, exist_ok=True)
@@ -2297,11 +2860,11 @@ class VideoEngine:
                     concat_encode_command.append(str(output_path))
                     self._run_external_command(concat_encode_command, "FFmpeg concat fallback encode")
 
-            final_duration = self._probe_duration_seconds(output_path)
-            if request.texts:
-                self._apply_concat_text_overlays(output_path, request, target_resolution, final_duration)
-                final_duration = self._probe_duration_seconds(output_path)
             timeline = TimelineDetailModel(clips=timeline_entries)
+            final_duration = self._probe_duration_seconds(output_path)
+            if request.texts or request.show_source:
+                self._apply_concat_text_overlays(output_path, request, target_resolution, final_duration, timeline)
+                final_duration = self._probe_duration_seconds(output_path)
             return RenderResult(status="ok", duration=final_duration, output=output_path, timeline=timeline)
         except Exception as exc:
             logger.exception("concat_normalize failed: %s", exc)
@@ -2313,12 +2876,14 @@ class VideoEngine:
         request: RenderRequest,
         target_resolution: tuple[int, int],
         duration: float,
+        timeline: Optional[TimelineDetailModel] = None,
     ) -> None:
         overlays: list[mpe.VideoClip] = []
         for text in request.texts:
             clip = self._build_text_clip(text, duration, target_resolution)
             if clip:
                 overlays.append(clip)
+        overlays.extend(self._build_show_source_clips(request.show_source, timeline, duration, target_resolution))
         if not overlays:
             return
 

@@ -60,8 +60,11 @@ High-level structure:
   "mode": "render",
   "output": { ... },
   "clips": [ ... ],
+  "timeline": { "channels": [ ... ] },
   "zoom_border": { ... },
+  "show_source": { ... },
   "attachments": [ ... ],
+  "inserts": [ ... ],
   "audio": [ ... ],
   "texts": [ ... ],
   "images": [ ... ],
@@ -84,7 +87,8 @@ High-level structure:
 - `output.format` in this mode: `mp4`, `mov`, `mkv`.
 - Preserves audio by normalizing it to AAC 48kHz stereo before concatenation.
 - If a clip has no audio stream, silent audio is generated for that clip to keep concat compatibility.
-- Ignores transitions/text/images/attachments and other composition effects.
+- Supports the legacy `clips[]` sequence and global `texts[]`/`zoom_border`/`show_source`.
+- Does not implement arbitrary `timeline.channels`, `attachments`, `inserts`, images, or transition composition. Use `mode=render` for full channel composition.
 - Still returns the same response structure and supports `detail_answer`.
 
 ### Output Settings
@@ -97,6 +101,7 @@ High-level structure:
 | `filename` | string | current datetime (e.g. `2026-03-01_17-39-20`) | Final file name stored under `renders/`. |
 | `fps` | integer | `30` | Target frame rate. |
 | `bitrate` | string | `null` | Optional ffmpeg bitrate string, e.g., `"6M"`. If omitted for `mp4`/`mov`, the engine falls back to quality-based H.264 encoding (`CRF/CQ`) instead of an arbitrary bitrate. |
+| `include_audio` | boolean | `true` | If `false`, the final render is exported without audio. If `true`, clip audio is preserved unless explicit `audio[]` tracks are provided, in which case `audio[]` becomes the final mix. |
 
 \* If `template` is explicitly set and `resolution` is omitted, template resolution is used.
 
@@ -130,6 +135,30 @@ Example:
 }
 ```
 
+### Show Source
+
+`show_source` is an optional debug overlay that displays the current source clip name in the upper-left corner, for example `Source: 8348370-uhd_4096_2160_30fps.mp4`.
+
+It works in `mode=render` and `mode=concat_normalize`. In `mode=render`, it follows channel `1` / `clips[]`. In `mode=concat_normalize`, it follows the normalized concat timeline.
+
+| Field | Type | Default | Description |
+| --- | --- | --- | --- |
+| `font` | string | `DejaVu-Sans` | Font family/style name or file name resolved through the same system-font lookup as `texts[].font`. |
+| `color` | RGBA object or string | `red` | Text color. Accepts names, hex strings, or RGBA objects. |
+| `size` | integer | `22` | Font size in pixels. |
+
+Example:
+
+```json
+"show_source": {
+  "font": "IBM Plex Sans",
+  "color": "#ff2d2d",
+  "size": 22
+}
+```
+
+The label uses a small fixed top-left margin and a dark stroke for readability. Long file names are shortened to fit the output width.
+
 ### Clip Instructions
 
 Each entry represents a source video fragment.
@@ -139,6 +168,7 @@ Each entry represents a source video fragment.
 | `source` | string (path) | required | Source video path. Supports relative paths and absolute paths (`C:/...`, `/...`). In Docker, host absolute paths require mount + `MEDIA_PATH_MAPPINGS` remap. |
 | `start` | float | `0.0` | Cut-in timestamp in seconds. |
 | `end` | float | `null` | Cut-out timestamp. Ignored if before `start` or beyond video duration. |
+| `at` | float | `null` | Timeline position in seconds for `mode=render`. If omitted, the clip is placed immediately after the current end of its channel. |
 | `fit_mode` | enum | `contain` | `cover` (fill & crop) or `contain` (fit within frame). |
 | `background_mode` | enum | `blur` | When `fit_mode=contain`: `blur` or `color`. |
 | `background_color` | RGBA | dark gray | Used for padding background or blur intensity alpha. |
@@ -160,12 +190,66 @@ Each entry represents a source video fragment.
 - Hard-clamped by the engine to `0.25` max.
 - Supported in both `mode=render` and `mode=concat_normalize`.
 
-If both `start` and `end` are omitted in a clip object, the clip is appended automatically to the timeline in request order:
-- first clip starts at `0.0`
-- each next clip starts where the previous visible clip ends
+Timeline placement in `mode=render`:
+- `clips[]` are placed on channel `1`.
+- If `at` is omitted, the clip is appended automatically after the current end of that channel.
+- If `at` is present, the clip starts at that timeline position, unless the previous clip's transition creates an overlap.
+- Transition overlaps (`crossfade`, `whip_pan`, `motion_blur` with `fade=true`) start the affected clip earlier for the effect, but compensate the overlap by extending that clip. The scheduled end time stays unchanged, so later `at` values keep their original timeline positions.
+- To compensate the overlap, the engine first tries to extend the source trim backward, then forward, then slows the prepared clip enough to reach the required duration if the source has no spare media.
 
 Important:
 - `clips[].start` / `clips[].end` are source trim markers (what part of each source file to use), not absolute timeline coordinates.
+- `clips[].at` is the timeline coordinate.
+
+### Timeline Channels
+
+`mode=render` internally renders video as ordered channels. Higher `channel_id` values are composited above lower channel values.
+
+Backward-compatible mapping:
+
+| Request field | Channel |
+| --- | --- |
+| `clips[]` | `1` |
+| `attachments[]` | `10` |
+| `inserts[]` | `11` |
+
+Future/new channel syntax:
+
+```json
+"timeline": {
+  "channels": [
+    {
+      "channel_id": 3,
+      "clips": [
+        {
+          "source": "media/overlay.mp4",
+          "at": 1.2,
+          "start": 0,
+          "end": 4,
+          "fit_mode": "contain",
+          "chroma_key": { "enabled": true, "color": "#00ff00" }
+        }
+      ]
+    }
+  ]
+}
+```
+
+Single-channel shorthand is also accepted:
+
+```json
+"timeline": {
+  "channel_id": 3,
+  "clips": [ ... ]
+}
+```
+
+Channel behavior:
+- Clips within the same channel keep request order for z-order if they overlap.
+- A clip without `at` starts at the current end of that channel.
+- A clip with `at` can overlap previous clips on the same channel.
+- `transitions_after` applies between adjacent clips on the same channel; for the last scheduled clip it behaves as an outro.
+- Global `texts[]` and `images[]` are drawn above channels below `10` and below legacy `attachments[]`/`inserts[]`. `zoom_border` is drawn last.
 
 #### Chroma Key Settings
 
@@ -206,7 +290,10 @@ When `fit_mode="contain"` and `chroma_key.enabled=true`, the engine keeps the pa
 
 ### Attachment / Insert Overlays
 
-`attachments` is an overlay video layer. The alias `inserts` is accepted and behaves exactly the same way.
+`attachments` and `inserts` are backward-compatible overlay arrays. Internally they are rendered as normal timeline channels:
+
+- `attachments[]` -> channel `10`
+- `inserts[]` -> channel `11`
 
 These entries inherit the same source-level options as `clips`:
 
@@ -221,17 +308,18 @@ Additional fields:
 
 | Field | Type | Default | Description |
 | --- | --- | --- | --- |
-| `at` | float | `0.0` | Timeline position where the insert starts when `placement="time"`. |
+| `at` | float | `null` | Timeline position where the insert starts when `placement="time"`. If omitted, it is auto-placed after the current end of its channel. |
 | `placement` | enum | `time` | `time`, `start`, `end`. |
 
 Behavior:
 
-- Inserts are composited on top of the final video timeline; they do not shift clips, texts, images, or audio timing.
+- Attachments/inserts are composited above `clips[]` because their channels have higher numbers.
+- Explicit `at` values are not shifted by `clips[]` transitions. Transition compensation keeps the lower-channel duration stable, so overlays stay synchronized against the original calculated timeline.
 - `placement="start"` ignores `at` and starts at timeline `0.0`.
-- `placement="end"` ignores `at` and aligns the insert end with the final video end.
+- `placement="end"` ignores `at` and aligns the insert end with the lower-channel timeline duration.
 - `placement="time"` uses `at` as the timeline start.
-- If an insert would extend outside the final video duration, it is trimmed to the visible window.
-- Intro/outro transitions on inserts apply to the insert clip itself. They do not create sequential concat behavior like the main `clips` track.
+- Legacy attachments/inserts are trimmed to the lower-channel timeline duration so they do not extend old-style renders unexpectedly.
+- Transitions between adjacent attachments/inserts on the same channel use the same channel scheduler as `clips[]`.
 
 Absolute host paths in Docker:
 - A container cannot read host filesystem paths (`C:/...`) unless that host directory is mounted into the container.
@@ -343,18 +431,33 @@ Detailed response (`detail_answer=true`):
   },
   "timeline": {
     "clips": [
-      {"index": 0, "source": "C:/.../a.mp4", "start": 0.0, "end": 3.0, "auto_placed": true},
-      {"index": 1, "source": "C:/.../b.mp4", "start": 3.0, "end": 6.0, "auto_placed": true}
+      {"index": 0, "source": "C:/.../a.mp4", "start": 0.0, "end": 3.0, "auto_placed": true, "channel_id": 1, "kind": "clip"},
+      {"index": 1, "source": "C:/.../b.mp4", "start": 3.0, "end": 6.0, "auto_placed": true, "channel_id": 1, "kind": "clip"}
     ],
     "attachments": [
-      {"index": 0, "source": "C:/.../intro.mp4", "start": 0.0, "end": 1.2, "auto_placed": true}
+      {"index": 0, "source": "C:/.../intro.mp4", "start": 0.0, "end": 1.2, "auto_placed": true, "channel_id": 10, "kind": "attachment"}
+    ],
+    "inserts": [],
+    "channels": [
+      {
+        "channel_id": 1,
+        "clips": [
+          {"index": 0, "source": "C:/.../a.mp4", "start": 0.0, "end": 3.0, "auto_placed": true, "channel_id": 1, "kind": "clip"}
+        ]
+      },
+      {
+        "channel_id": 10,
+        "clips": [
+          {"index": 0, "source": "C:/.../intro.mp4", "start": 0.0, "end": 1.2, "auto_placed": true, "channel_id": 10, "kind": "attachment"}
+        ]
+      }
     ],
     "total_duration": 8.2
   }
 }
 ```
 
-`timeline.clips[].source` echoes the original source path from the request. It does not expose internal Docker remap paths such as `/external_media/...`.
+`timeline.*[].source` echoes the original source path from the request. It does not expose internal Docker remap paths such as `/external_media/...`.
 
 ## Error Handling
 

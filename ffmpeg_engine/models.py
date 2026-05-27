@@ -257,6 +257,7 @@ class ClipInstruction(BaseModel):
     source: Path
     start: float = Field(0.0, ge=0.0)
     end: Optional[float] = Field(None, gt=0.0)
+    at: Optional[float] = Field(None, ge=0.0)
     fit_mode: FitMode = FitMode.CONTAIN
     background_mode: BackgroundMode = BackgroundMode.BLUR
     background_color: ColorModel = Field(default_factory=lambda: ColorModel(r=16, g=16, b=16, a=1.0))
@@ -296,7 +297,7 @@ class ClipInstruction(BaseModel):
 
 
 class InsertInstruction(ClipInstruction):
-    at: float = Field(0.0, ge=0.0)
+    at: Optional[float] = Field(None, ge=0.0)
     placement: InsertPlacement = InsertPlacement.TIME
 
 
@@ -369,6 +370,16 @@ class ZoomBorderInstruction(BaseModel):
         return max(0.0, min(parse_percent_value(value, default=0.2), 0.95))
 
 
+class ShowSourceInstruction(BaseModel):
+    font: str = "DejaVu-Sans"
+    color: ColorModel = Field(default_factory=lambda: ColorModel(r=255, g=0, b=0, a=1.0))
+    size: int = Field(22, gt=0)
+
+    @validator("color", pre=True)
+    def parse_color(cls, value):
+        return _parse_color_value(value)
+
+
 class OutputInstruction(BaseModel):
     template: Optional[str] = None
     resolution: Optional[ResolutionModel] = None
@@ -387,15 +398,38 @@ class OutputInstruction(BaseModel):
         return default_output_resolution()
 
 
+class TimelineChannelInstruction(BaseModel):
+    channel_id: int = Field(1, ge=0)
+    clips: List[ClipInstruction] = Field(default_factory=list)
+
+    @root_validator(pre=True)
+    def normalize_channel_id_aliases(cls, values):
+        if not isinstance(values, dict):
+            return values
+        if "channel_id" not in values:
+            if "id" in values:
+                values["channel_id"] = values["id"]
+            elif "channel" in values:
+                values["channel_id"] = values["channel"]
+        return values
+
+
+class TimelineInstruction(BaseModel):
+    channels: List[TimelineChannelInstruction] = Field(default_factory=list)
+
+
 class RenderRequest(BaseModel):
     mode: ProcessingMode = ProcessingMode.RENDER
     output: OutputInstruction = Field(default_factory=OutputInstruction)
     clips: List[ClipInstruction] = Field(default_factory=list)
     attachments: List[InsertInstruction] = Field(default_factory=list)
+    inserts: List[InsertInstruction] = Field(default_factory=list)
+    timeline: Optional[TimelineInstruction] = None
     audio: List[AudioInstruction] = Field(default_factory=list)
     texts: List[TextInstruction] = Field(default_factory=list)
     images: List[ImageInstruction] = Field(default_factory=list)
     zoom_border: Optional[ZoomBorderInstruction] = None
+    show_source: Optional[ShowSourceInstruction] = None
     detail_answer: bool = False
 
     @root_validator(pre=True)
@@ -403,14 +437,11 @@ class RenderRequest(BaseModel):
         if not isinstance(values, dict):
             return values
 
-        attachments = values.get("attachments")
-        inserts = values.get("inserts")
-
-        normalized_attachments = attachments if isinstance(attachments, list) else []
-        normalized_inserts = inserts if isinstance(inserts, list) else []
-
-        if normalized_attachments or normalized_inserts:
-            values["attachments"] = [*normalized_attachments, *normalized_inserts]
+        timeline = values.get("timeline")
+        if isinstance(timeline, list):
+            values["timeline"] = {"channels": timeline}
+        elif isinstance(timeline, dict) and "channels" not in timeline and "clips" in timeline:
+            values["timeline"] = {"channels": [timeline]}
 
         return values
 
@@ -421,11 +452,20 @@ class TimelineClipModel(BaseModel):
     start: float
     end: float
     auto_placed: bool = False
+    channel_id: Optional[int] = None
+    kind: Optional[str] = None
+
+
+class TimelineChannelModel(BaseModel):
+    channel_id: int
+    clips: List[TimelineClipModel] = Field(default_factory=list)
 
 
 class TimelineDetailModel(BaseModel):
     clips: List[TimelineClipModel] = Field(default_factory=list)
     attachments: List[TimelineClipModel] = Field(default_factory=list)
+    inserts: List[TimelineClipModel] = Field(default_factory=list)
+    channels: List[TimelineChannelModel] = Field(default_factory=list)
 
 
 class RenderResult(BaseModel):
