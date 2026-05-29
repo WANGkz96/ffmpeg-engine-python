@@ -275,6 +275,12 @@ class ClipInstruction(BaseModel):
     playback_rate: float = Field(1.0, gt=0.0)
     volume: float = Field(1.0, ge=0.0)
 
+    @root_validator(pre=True)
+    def normalize_playback_rate_alias(cls, values):
+        if isinstance(values, dict) and "playback_rate" not in values and "playbackRate" in values:
+            values = {**values, "playback_rate": values.get("playbackRate")}
+        return values
+
     @validator("internal_zoom", pre=True, always=True)
     def clamp_alias_internal_zoom(cls, v):
         return clamp_internal_zoom(v)
