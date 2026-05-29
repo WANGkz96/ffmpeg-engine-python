@@ -1,0 +1,87 @@
+{
+  "mode": "render",
+  "detail_answer": true,
+  "timeline": {
+    "channels": [
+      {
+        "channel_id": 1,
+        "clips": [
+          {
+            "source": "media/8348370-uhd_4096_2160_30fps.mp4",
+            "start": 0,
+            "end": 2,
+            "fit_mode": "cover"
+          },
+          {
+            "source": "media/14705086_1080_1920_30fps.mp4",
+            "start": 0,
+            "end": 2,
+            "fit_mode": "cover",
+            "transitions_after": [
+              {
+                "type": "motion_blur",
+                "duration": 0.4,
+                "fade": true
+              }
+            ]
+          },
+          {
+            "source": "media/18812518-uhd_2160_4096_30fps.mp4",
+            "at": 4,
+            "start": 0,
+            "end": 2,
+            "fit_mode": "cover"
+          },
+          {
+            "source": "media/6319879-uhd_2160_3840_25fps.mp4",
+            "at": 6,
+            "start": 0,
+            "end": 1,
+            "fit_mode": "cover"
+          }
+        ]
+      },
+      {
+        "channel_id": 3,
+        "clips": [
+          {
+            "source": "media/Chromakey_subscribe.mp4",
+            "at": 1,
+            "fit_mode": "contain",
+            "chroma_key": {
+              "enabled": true,
+              "color": "#02db10",
+              "similarity": 0.18,
+              "blend": 0.08,
+              "edge_blur": 1.2
+            }
+          }
+        ]
+      }
+    ]
+  },
+  "texts": [
+    {
+      "content": "timeline.channels: channel 3 overlays channel 1",
+      "start": 0,
+      "end": 5.6,
+      "position": "bottom",
+      "font": "IBM Plex Sans",
+      "font_size": 34,
+      "stroke_color": { "r": 0, "g": 0, "b": 0, "a": 1 },
+      "stroke_width": 3,
+      "shadow": true
+    }
+  ],
+  "output": {
+    "filename": "repro_timeline_channels.mp4",
+    "format": "mp4",
+    "fps": 10,
+    "bitrate": "1M",
+    "include_audio": false,
+    "resolution": {
+      "width": 854,
+      "height": 480
+    }
+  }
+}

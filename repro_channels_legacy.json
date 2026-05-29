@@ -1,0 +1,76 @@
+{
+  "mode": "render",
+  "detail_answer": true,
+  "clips": [
+    {
+      "source": "media/8348370-uhd_4096_2160_30fps.mp4",
+      "start": 0,
+      "end": 2,
+      "fit_mode": "cover",
+      "transitions_after": [
+        {
+          "type": "crossfade",
+          "duration": 0.5
+        }
+      ]
+    },
+    {
+      "source": "media/14705086_1080_1920_30fps.mp4",
+      "start": 0,
+      "end": 2,
+      "fit_mode": "cover"
+    }
+  ],
+  "attachments": [
+    {
+      "source": "media/Chromakey_subscribe.mp4",
+      "at": 0.5,
+      "fit_mode": "contain",
+      "chroma_key": {
+        "enabled": true,
+        "color": "#02db10",
+        "similarity": 0.18,
+        "blend": 0.08,
+        "edge_blur": 1.2
+      }
+    }
+  ],
+  "inserts": [
+    {
+      "source": "media/Chromakey_subscribe.mp4",
+      "at": 2.5,
+      "fit_mode": "contain",
+      "chroma_key": {
+        "enabled": true,
+        "color": "#02db10",
+        "similarity": 0.18,
+        "blend": 0.08,
+        "edge_blur": 1.2
+      }
+    }
+  ],
+  "texts": [
+    {
+      "content": "legacy clips -> channel 1, attachments -> channel 10",
+      "start": 0,
+      "end": 3.5,
+      "position": "top",
+      "font": "Philosopher",
+      "font_size": 34,
+      "stroke_color": { "r": 0, "g": 0, "b": 0, "a": 1 },
+      "stroke_width": 3,
+      "shadow": true
+    }
+  ],
+  "output": {
+    "filename": "repro_channels_legacy.mp4",
+    "format": "mp4",
+    "fps": 10,
+    "bitrate": "1M",
+    "include_audio": false,
+    "resolution": {
+      "width": 854,
+      "height": 480
+    }
+  }
+}
