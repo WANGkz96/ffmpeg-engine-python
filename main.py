@@ -6,15 +6,19 @@ import json
 import logging
 import os
 import signal
+import shutil
 import subprocess
 import sys
 import tempfile
+import time
 from pathlib import Path
+from typing import Any
 
 from fastapi import Body, FastAPI, HTTPException, Query, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from PIL import Image
+from pydantic import BaseModel, Field
 
 if not hasattr(Image, "ANTIALIAS"):
     # Pillow 10+ uses Resampling.LANCZOS instead of ANTIALIAS.
@@ -28,6 +32,12 @@ logger = logging.getLogger(__name__)
 
 app = FastAPI(title="FFmpeg Engine", version="1.0.0")
 engine = VideoEngine(workspace=Path("renders"))
+
+
+class CleanupRequest(BaseModel):
+    dry_run: bool = True
+    older_than_hours: int = Field(default=24, ge=0)
+    include_media: bool = True
 
 
 def _get_public_base_url() -> str | None:
@@ -124,6 +134,59 @@ def _resolve_download_target(filename: str) -> Path:
     except ValueError as exc:
         raise HTTPException(status_code=400, detail="Invalid download path") from exc
     return target
+
+
+def _path_size(path: Path) -> int:
+    if path.is_file():
+        try:
+            return path.stat().st_size
+        except OSError:
+            return 0
+    total = 0
+    for child in path.rglob("*"):
+        if child.is_file():
+            try:
+                total += child.stat().st_size
+            except OSError:
+                continue
+    return total
+
+
+def _latest_mtime(path: Path) -> float:
+    try:
+        latest = path.stat().st_mtime
+    except OSError:
+        return 0.0
+    if path.is_dir():
+        for child in path.rglob("*"):
+            try:
+                latest = max(latest, child.stat().st_mtime)
+            except OSError:
+                continue
+    return latest
+
+
+def _delete_path(path: Path) -> None:
+    if path.is_dir():
+        shutil.rmtree(path)
+    else:
+        path.unlink()
+
+
+def _is_locked_output_path(path: Path) -> bool:
+    try:
+        key = str(path.resolve())
+    except OSError:
+        key = str(path)
+    lock = output_locks.get(key)
+    return bool(lock and lock.locked())
+
+
+def _iter_cleanup_roots(include_media: bool) -> list[tuple[str, Path]]:
+    roots: list[tuple[str, Path]] = [("renders", engine.workspace.resolve())]
+    if include_media:
+        roots.append(("media", Path("media").resolve()))
+    return roots
 
 
 def _resolve_output_target_key(payload: RenderRequest) -> str:
@@ -396,6 +459,50 @@ async def root() -> dict:
     return {"status": "ok", "message": "FFmpeg engine is running"}
 
 
+@app.post("/cleanup")
+async def cleanup(payload: CleanupRequest) -> dict[str, Any]:
+    cutoff = time.time() - payload.older_than_hours * 3600
+    removed: list[dict[str, Any]] = []
+    skipped: list[dict[str, str]] = []
+    removed_bytes = 0
+
+    for root_name, root in _iter_cleanup_roots(payload.include_media):
+        if not root.exists():
+            skipped.append({"path": root_name, "reason": "missing_root"})
+            continue
+        for child in root.iterdir():
+            relative_name = f"{root_name}/{child.name}"
+            if child.name == ".gitkeep":
+                skipped.append({"path": relative_name, "reason": "reserved"})
+                continue
+            if root_name == "renders" and _is_locked_output_path(child):
+                skipped.append({"path": relative_name, "reason": "active_output"})
+                continue
+            if _latest_mtime(child) > cutoff:
+                skipped.append({"path": relative_name, "reason": "too_new"})
+                continue
+
+            size = _path_size(child)
+            removed.append({"path": relative_name, "bytes": size})
+            removed_bytes += size
+            if payload.dry_run:
+                continue
+            try:
+                _delete_path(child)
+            except OSError as exc:
+                skipped.append({"path": relative_name, "reason": f"delete_failed: {exc}"})
+
+    return {
+        "dry_run": payload.dry_run,
+        "older_than_hours": payload.older_than_hours,
+        "include_media": payload.include_media,
+        "removed_count": len(removed),
+        "removed_bytes": removed_bytes,
+        "removed": removed,
+        "skipped": skipped,
+    }
+
+
 @app.get("/downloads/")
 async def list_downloads(request: Request) -> dict:
     workspace = engine.workspace.resolve()
@@ -420,6 +527,18 @@ async def download_render(filename: str) -> Response:
     if not target.exists() or not target.is_file():
         raise HTTPException(status_code=404, detail="Render file not found")
     return FileResponse(target, filename=target.name)
+
+
+@app.delete("/downloads/{filename:path}")
+async def delete_render(filename: str) -> dict[str, Any]:
+    target = _resolve_download_target(filename)
+    if _is_locked_output_path(target):
+        raise HTTPException(status_code=409, detail="Render file is still being produced")
+    if not target.exists() or not target.is_file():
+        raise HTTPException(status_code=404, detail="Render file not found")
+    removed_bytes = _path_size(target)
+    target.unlink()
+    return {"filename": filename, "removed": True, "removed_bytes": removed_bytes}
 
 
 @app.post("/render")

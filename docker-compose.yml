@@ -25,11 +25,11 @@ services:
     volumes:
       # Mount source code so changes on host are visible in container.
       - ./:/app
-      - ./media:/app/media:ro
+      - ./media:/app/media
       # Windows system fonts, read-only. Override SYSTEM_FONTS_HOST_PATH if needed.
       - ${SYSTEM_FONTS_HOST_PATH:-C:/Windows/Fonts}:/system_fonts/windows:ro
       # Per-user Windows fonts, read-only. Override USER_FONTS_HOST_PATH if needed.
       - ${USER_FONTS_HOST_PATH:-${LOCALAPPDATA}/Microsoft/Windows/Fonts}:/system_fonts/windows_user:ro
       # Optional extra host media root for absolute-path mapping.
-      - ${EXTRA_MEDIA_HOST_PATH:-./media}:${EXTRA_MEDIA_CONTAINER_PATH:-/external_media}:ro
+      - ${EXTRA_MEDIA_HOST_PATH:-../../Video-pipeline/Video-pipeline/server/data/pipeline/STEP_3_MEDIA}:${EXTRA_MEDIA_CONTAINER_PATH:-/external_media}:ro
       - ./renders:/app/renders
