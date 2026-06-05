@@ -174,6 +174,7 @@ Each entry represents a source video fragment.
 | `background_color` | RGBA | dark gray | Used for padding background or blur intensity alpha. |
 | `reframe` | object | `null` | Optional source-level reframing before `fit_mode`/background. Currently supports `{ "mode": "center_zoom", "zoom_percent": 0.08 }`. |
 | `internal_zoom` | float | `0.0` | Alias for `reframe.center_zoom`. `0.08` means about 8% center zoom-in. |
+| `mirror_horizontal` | bool | `false` | Optional left/right mirror before `fit_mode`/background. Equivalent to ffmpeg `hflip`. |
 | `transitions_before` | array | `[]` | Transitions applied to the *start* of this clip (Intro). |
 | `transitions_after` | array | `[]` | Transitions applied *after* this clip (Between clips or Outro). |
 | `chroma_key` | object | disabled | Removes a color background by generating an alpha mask. See "Chroma Key Settings". |
@@ -187,7 +188,7 @@ Each entry represents a source video fragment.
 - Supported now: `center_zoom` only.
 - `zoom_percent=0.08` means roughly 8% zoom-in from the clip center.
 - Omitted or `0` keeps current behavior unchanged.
-- Hard-clamped by the engine to `0.25` max.
+- Hard-clamped by the engine to `1.0` max.
 - Supported in both `mode=render` and `mode=concat_normalize`.
 
 Timeline placement in `mode=render`:

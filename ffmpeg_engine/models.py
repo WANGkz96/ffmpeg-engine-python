@@ -21,6 +21,17 @@ def clamp_internal_zoom(value) -> float:
     return max(0.0, min(numeric, MAX_INTERNAL_ZOOM))
 
 
+def parse_bool_flag(value) -> bool:
+    if isinstance(value, bool):
+        return value
+    if value is None:
+        return False
+    if isinstance(value, (int, float)):
+        return value != 0
+    text = str(value).strip().lower()
+    return text in {"1", "true", "yes", "on"}
+
+
 def parse_percent_value(value, default: float = 0.0) -> float:
     if value is None:
         return default
@@ -263,6 +274,7 @@ class ClipInstruction(BaseModel):
     background_color: ColorModel = Field(default_factory=lambda: ColorModel(r=16, g=16, b=16, a=1.0))
     reframe: Optional[ReframeInstruction] = None
     internal_zoom: float = 0.0
+    mirror_horizontal: bool = False
 
     # НОВОЕ: переходы, которые применяются к самому клипу "в начале"
     transitions_before: List[TransitionInstruction] = Field(default_factory=list)
@@ -276,9 +288,14 @@ class ClipInstruction(BaseModel):
     volume: float = Field(1.0, ge=0.0)
 
     @root_validator(pre=True)
-    def normalize_playback_rate_alias(cls, values):
+    def normalize_clip_aliases(cls, values):
         if isinstance(values, dict) and "playback_rate" not in values and "playbackRate" in values:
             values = {**values, "playback_rate": values.get("playbackRate")}
+        if isinstance(values, dict) and "mirror_horizontal" not in values:
+            for alias in ("mirrorHorizontal", "horizontal_flip", "horizontalFlip", "hflip"):
+                if alias in values:
+                    values = {**values, "mirror_horizontal": parse_bool_flag(values.get(alias))}
+                    break
         return values
 
     @validator("internal_zoom", pre=True, always=True)

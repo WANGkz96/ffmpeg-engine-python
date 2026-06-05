@@ -1040,6 +1040,7 @@ class VideoEngine:
             speed_factor = max(clip.duration / target_output_duration, 1e-6)
             clip = clip.fx(vfx.speedx, speed_factor)
 
+        clip = self._apply_horizontal_mirror(clip, instruction)
         clip = self._apply_internal_zoom(clip, instruction)
         clip = self._apply_fit_mode(clip, instruction, target_resolution)
         clip = self._apply_adjustments(clip, instruction.adjustments)
@@ -1049,6 +1050,12 @@ class VideoEngine:
 
         clip = clip.set_fps(fps)
         return clip
+
+    @staticmethod
+    def _apply_horizontal_mirror(clip: mpe.VideoClip, instruction: ClipInstruction) -> mpe.VideoClip:
+        if not bool(getattr(instruction, "mirror_horizontal", False)):
+            return clip
+        return clip.fx(vfx.mirror_x).set_duration(clip.duration)
 
     @staticmethod
     def _apply_internal_zoom(clip: mpe.VideoClip, instruction: ClipInstruction) -> mpe.VideoClip:
@@ -2653,6 +2660,8 @@ class VideoEngine:
             end = None
 
         vf_parts = []
+        if instruction.mirror_horizontal:
+            vf_parts.append("hflip")
         zoom_filter = self._build_center_zoom_filter(instruction.effective_internal_zoom)
         if zoom_filter:
             vf_parts.append(zoom_filter)
