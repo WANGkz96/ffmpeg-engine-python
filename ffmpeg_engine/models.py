@@ -8,7 +8,7 @@ from typing import Any, List, Literal, Optional
 
 from pydantic import BaseModel, Field, root_validator, validator
 
-MAX_INTERNAL_ZOOM = 0.25
+MAX_INTERNAL_ZOOM = 1.0
 
 
 def clamp_internal_zoom(value) -> float:
