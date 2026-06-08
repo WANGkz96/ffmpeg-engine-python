@@ -1538,6 +1538,10 @@ class VideoEngine:
                 TimelineClipModel(
                     index=source_index,
                     source=instruction.source,
+                    source_label=instruction.source_label,
+                    source_type=instruction.source_type,
+                    source_resolution=instruction.source_resolution,
+                    quality_label=instruction.quality_label,
                     start=round(max(start, 0.0), 1),
                     end=round(max(end, 0.0), 1),
                     auto_placed=self._is_auto_placed_instruction(instruction),
@@ -1602,6 +1606,10 @@ class VideoEngine:
         timeline_item = TimelineClipModel(
             index=index,
             source=instruction.source,
+            source_label=instruction.source_label,
+            source_type=instruction.source_type,
+            source_resolution=instruction.source_resolution,
+            quality_label=instruction.quality_label,
             start=round(max(timeline_start, 0.0), 1),
             end=round(max(timeline_end, 0.0), 1),
             auto_placed=self._is_auto_placed_attachment(instruction),
@@ -1736,6 +1744,10 @@ class VideoEngine:
                 TimelineClipModel(
                     index=index,
                     source=instruction.source,
+                    source_label=instruction.source_label,
+                    source_type=instruction.source_type,
+                    source_resolution=instruction.source_resolution,
+                    quality_label=instruction.quality_label,
                     start=round(max(scheduled_start, 0.0), 1),
                     end=round(max(clip_end, 0.0), 1),
                     auto_placed=self._is_auto_placed_instruction(instruction),
@@ -1866,7 +1878,8 @@ class VideoEngine:
             end = min(max(float(item.end), start), duration)
             if end <= start:
                 continue
-            label, bbox = fit_label(f"Source: {Path(item.source).name}")
+            source_label = str(item.source_label or "").strip() or Path(item.source).name
+            label, bbox = fit_label(f"Source: {source_label}")
             pad = stroke_width + 2
             label_w = max(bbox[2] - bbox[0], 1)
             label_h = max(bbox[3] - bbox[1], 1)
@@ -2780,6 +2793,10 @@ class VideoEngine:
                         TimelineClipModel(
                             index=index,
                             source=instruction.source,
+                            source_label=instruction.source_label,
+                            source_type=instruction.source_type,
+                            source_resolution=instruction.source_resolution,
+                            quality_label=instruction.quality_label,
                             start=round(max(clip_start, 0.0), 1),
                             end=round(max(clip_end, 0.0), 1),
                             auto_placed=self._is_auto_placed_instruction(instruction),

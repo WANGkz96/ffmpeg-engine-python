@@ -266,6 +266,10 @@ class ReframeInstruction(BaseModel):
 
 class ClipInstruction(BaseModel):
     source: Path
+    source_label: Optional[str] = None
+    source_type: Optional[str] = None
+    source_resolution: Optional[Any] = None
+    quality_label: Optional[str] = None
     start: float = Field(0.0, ge=0.0)
     end: Optional[float] = Field(None, gt=0.0)
     at: Optional[float] = Field(None, ge=0.0)
@@ -296,6 +300,19 @@ class ClipInstruction(BaseModel):
                 if alias in values:
                     values = {**values, "mirror_horizontal": parse_bool_flag(values.get(alias))}
                     break
+        if isinstance(values, dict):
+            alias_map = {
+                "source_label": ("sourceLabel", "label"),
+                "source_type": ("sourceType",),
+                "source_resolution": ("sourceResolution",),
+                "quality_label": ("qualityLabel", "quality"),
+            }
+            for target, aliases in alias_map.items():
+                if target not in values:
+                    for alias in aliases:
+                        if alias in values:
+                            values = {**values, target: values.get(alias)}
+                            break
         return values
 
     @validator("internal_zoom", pre=True, always=True)
@@ -472,6 +489,10 @@ class RenderRequest(BaseModel):
 class TimelineClipModel(BaseModel):
     index: int
     source: Path
+    source_label: Optional[str] = None
+    source_type: Optional[str] = None
+    source_resolution: Optional[Any] = None
+    quality_label: Optional[str] = None
     start: float
     end: float
     auto_placed: bool = False

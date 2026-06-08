@@ -246,6 +246,14 @@ def _build_json_payload(request: Request, result: RenderResult, detail_answer: b
                 "end": round(clip.end, 1),
                 "auto_placed": clip.auto_placed,
             }
+            if clip.source_label:
+                payload["source_label"] = clip.source_label
+            if clip.source_type:
+                payload["source_type"] = clip.source_type
+            if clip.source_resolution is not None:
+                payload["source_resolution"] = clip.source_resolution
+            if clip.quality_label:
+                payload["quality_label"] = clip.quality_label
             if clip.channel_id is not None:
                 payload["channel_id"] = clip.channel_id
             if clip.kind:
