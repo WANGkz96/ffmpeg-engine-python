@@ -45,6 +45,8 @@ logger = logging.getLogger(__name__)
 
 # --- Monkey patch or helper functions ---
 
+ADJACENT_INSERT_TOLERANCE_SEC = 0.05
+
 SUPPORTED_FONT_EXTENSIONS = {".ttf", ".otf", ".ttc", ".otc"}
 
 
@@ -1472,6 +1474,58 @@ class VideoEngine:
             return max(min(requested, previous_duration), 0.0)
         return 0.0
 
+    def _resolve_instruction_timeline_start_for_adjacency(
+        self,
+        instruction: ClipInstruction,
+        cursor: float,
+        output_duration: float,
+        reference_duration: float,
+    ) -> float:
+        placement = getattr(instruction, "placement", InsertPlacement.TIME)
+        if placement == InsertPlacement.START:
+            return 0.0
+        if placement == InsertPlacement.END:
+            return max(reference_duration - max(output_duration, 0.0), 0.0)
+        if self._has_explicit_at(instruction):
+            return max(float(instruction.at or 0.0), 0.0)
+        return max(cursor, 0.0)
+
+    def _suppress_adjacent_insert_intro_transition(
+        self,
+        entries: list[tuple[str, int, ClipInstruction, bool]],
+        entry_index: int,
+        cursor: float,
+        reference_duration: float,
+    ) -> None:
+        if entry_index <= 0:
+            return
+        kind, _source_index, instruction, _trim_to_reference = entries[entry_index]
+        if kind not in {"attachment", "insert"} or not instruction.transitions_before:
+            return
+
+        previous_kind, _previous_source_index, previous_instruction, _previous_trim = entries[entry_index - 1]
+        if previous_kind != kind:
+            return
+
+        previous_duration = self._get_instruction_output_duration(previous_instruction)
+        current_duration = self._get_instruction_output_duration(instruction)
+        previous_start = self._resolve_instruction_timeline_start_for_adjacency(
+            previous_instruction,
+            max(cursor - previous_duration, 0.0),
+            previous_duration,
+            reference_duration,
+        )
+        current_start = self._resolve_instruction_timeline_start_for_adjacency(
+            instruction,
+            cursor,
+            current_duration,
+            reference_duration,
+        )
+        previous_end = previous_start + previous_duration
+
+        if abs(current_start - previous_end) <= ADJACENT_INSERT_TOLERANCE_SEC:
+            instruction.transitions_before = []
+
     def _build_timeline_channel(
         self,
         channel_id: int,
@@ -1487,6 +1541,12 @@ class VideoEngine:
         cursor = 0.0
 
         for entry_index, (kind, source_index, instruction, trim_to_reference) in enumerate(entries):
+            self._suppress_adjacent_insert_intro_transition(
+                entries,
+                entry_index,
+                cursor,
+                reference_duration,
+            )
             transition = None
             if entry_index > 0:
                 prev_instruction = entries[entry_index - 1][2]
