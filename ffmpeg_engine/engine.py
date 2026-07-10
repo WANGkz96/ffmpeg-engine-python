@@ -2908,6 +2908,7 @@ class VideoEngine:
         transition: Optional[TransitionInstruction],
         clip_duration: float,
         phase: str,
+        fps: int = 24,
     ) -> list[str]:
         if transition is None or transition.type not in {TransitionType.WHIP_PAN, TransitionType.MOTION_BLUR}:
             return []
@@ -2924,7 +2925,9 @@ class VideoEngine:
             return []
         direction = transition.direction.value if hasattr(transition.direction, "value") else str(transition.direction)
         vertical = transition.type == TransitionType.WHIP_PAN and direction in {"top", "bottom"}
-        window_count = 8
+        # Use one blur-strength window per output frame. This preserves the
+        # legacy quadratic curve without visible eight-step jumps.
+        window_count = max(int(duration * max(int(fps), 1) + 0.999999), 1)
         start_offset = 0.0 if phase in {"intro", "between"} else max(float(clip_duration) - duration, 0.0)
         result: list[str] = []
         for window_index in range(window_count):
@@ -2943,7 +2946,7 @@ class VideoEngine:
             if kernel % 2 == 0:
                 kernel += 1
             size_x, size_y = (1, kernel) if vertical else (kernel, 1)
-            enable = f"between(t\\,{window_start:.6f}\\,{window_end:.6f})"
+            enable = f"gte(t\\,{window_start:.6f})*lt(t\\,{window_end:.6f})"
             result.append(f"avgblur=sizeX={size_x}:sizeY={size_y}:enable='{enable}'")
             # Glow belongs to motion_blur only in the legacy path. It followed
             # the same quadratic curve as the blur strength.
@@ -3050,6 +3053,10 @@ class VideoEngine:
         tail_label = f"vwhiptail{sequence_index}"
         head_label = f"vwhiphead{sequence_index}"
         rest_label = f"vwhiprest{sequence_index}"
+        body_source_label = f"vwhipbodysrc{sequence_index}"
+        tail_source_label = f"vwhiptailsrc{sequence_index}"
+        head_source_label = f"vwhipheadsrc{sequence_index}"
+        rest_source_label = f"vwhiprestsrc{sequence_index}"
         black_label = f"vwhipblack{sequence_index}"
         moved_previous_label = f"vwhipprev{sequence_index}"
         scene_label = f"vwhipscene{sequence_index}"
@@ -3059,14 +3066,28 @@ class VideoEngine:
 
         if body_duration > 1e-6:
             filters.append(
-                f"[{previous_label}]trim=duration={body_duration:.6f},setpts=PTS-STARTPTS[{body_label}]"
+                f"[{previous_label}]split=2[{body_source_label}][{tail_source_label}]"
+            )
+            filters.append(
+                f"[{body_source_label}]trim=duration={body_duration:.6f},"
+                f"setpts=PTS-STARTPTS[{body_label}]"
             )
             parts.append(body_label)
+        else:
+            tail_source_label = previous_label
         filters.append(
-            f"[{previous_label}]trim=start={body_duration:.6f}:end={previous_duration:.6f},"
+            f"[{tail_source_label}]trim=start={body_duration:.6f}:end={previous_duration:.6f},"
             f"setpts=PTS-STARTPTS[{tail_label}]"
         )
-        filters.append(f"[{next_label}]trim=duration={duration:.6f},setpts=PTS-STARTPTS[{head_label}]")
+        if rest_duration > 1e-6:
+            filters.append(
+                f"[{next_label}]split=2[{head_source_label}][{rest_source_label}]"
+            )
+        else:
+            head_source_label = next_label
+        filters.append(
+            f"[{head_source_label}]trim=duration={duration:.6f},setpts=PTS-STARTPTS[{head_label}]"
+        )
         filters.append(f"color=c=black:s={width}x{height}:r={fps}:d={duration:.6f}[{black_label}]")
         filters.append(
             f"[{black_label}][{tail_label}]overlay=x='{previous_x}':y='{previous_y}':"
@@ -3076,14 +3097,16 @@ class VideoEngine:
             f"[{moved_previous_label}][{head_label}]overlay=x='{next_x}':y='{next_y}':"
             f"eval=frame:shortest=1[{scene_label}]"
         )
-        blur_filters = self._fast_transition_edge_filters(transition, duration, "between")
+        blur_filters = self._fast_transition_edge_filters(transition, duration, "between", fps)
         if blur_filters:
             filters.append(f"[{scene_label}]{','.join(blur_filters)},format=yuv420p[{transition_label}]")
         else:
             filters.append(f"[{scene_label}]format=yuv420p[{transition_label}]")
         parts.append(transition_label)
         if rest_duration > 1e-6:
-            filters.append(f"[{next_label}]trim=start={duration:.6f},setpts=PTS-STARTPTS[{rest_label}]")
+            filters.append(
+                f"[{rest_source_label}]trim=start={duration:.6f},setpts=PTS-STARTPTS[{rest_label}]"
+            )
             parts.append(rest_label)
 
         if len(parts) == 1:
@@ -3819,7 +3842,9 @@ class VideoEngine:
                     # the seam twice and reintroduce the old visible line.
                     if previous_transition and previous_transition.type == TransitionType.MOTION_BLUR:
                         main_filters.extend(
-                            self._fast_transition_edge_filters(previous_transition, duration, "intro")
+                            self._fast_transition_edge_filters(
+                                previous_transition, duration, "intro", request.output.fps
+                            )
                         )
                     outro_transition = (
                         instruction.transitions_after[0]
@@ -3831,7 +3856,9 @@ class VideoEngine:
                         or instruction_index == len(request.clips) - 1
                     ):
                         main_filters.extend(
-                            self._fast_transition_edge_filters(outro_transition, duration, "outro")
+                            self._fast_transition_edge_filters(
+                                outro_transition, duration, "outro", request.output.fps
+                            )
                         )
                     if previous_transition and previous_transition.type == TransitionType.FADE_BLACK:
                         fade_in = min(float(previous_transition.duration or 0.0), duration)
@@ -3949,10 +3976,14 @@ class VideoEngine:
                 intro_transition = item.get("intro_transition")
                 outro_transition = item.get("outro_transition")
                 video_filters.extend(
-                    self._fast_transition_edge_filters(intro_transition, duration, "intro")
+                    self._fast_transition_edge_filters(
+                        intro_transition, duration, "intro", request.output.fps
+                    )
                 )
                 video_filters.extend(
-                    self._fast_transition_edge_filters(outro_transition, duration, "outro")
+                    self._fast_transition_edge_filters(
+                        outro_transition, duration, "outro", request.output.fps
+                    )
                 )
                 intro_fade = min(max(float(item.get("intro_fade", 0.0) or 0.0), 0.0), duration)
                 outro_fade = min(max(float(item.get("outro_fade", 0.0) or 0.0), 0.0), duration)
