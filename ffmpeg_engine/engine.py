@@ -3858,6 +3858,14 @@ class VideoEngine:
                     next_duration = max(float(item["duration"]), 0.001)
                     next_label = f"vbase{sequence_index}"
                     overlap = max(current_duration - desired_start, 0.0)
+                    previous_item = main_labels[sequence_index - 1][1]
+                    previous_instruction = previous_item["instruction"]
+                    assert isinstance(previous_instruction, ClipInstruction)
+                    transition = (
+                        previous_instruction.transitions_after[0]
+                        if previous_instruction.transitions_after
+                        else None
+                    )
                     if overlap > 1e-6 and transition and transition.type == TransitionType.WHIP_PAN:
                         filters.extend(
                             self._build_fast_whip_pan_between_filters(
@@ -3876,14 +3884,6 @@ class VideoEngine:
                         current_duration = max(current_duration + next_duration - overlap, desired_start + next_duration)
                     elif overlap > 1e-6:
                         overlap = min(overlap, current_duration, next_duration)
-                        previous_item = main_labels[sequence_index - 1][1]
-                        previous_instruction = previous_item["instruction"]
-                        assert isinstance(previous_instruction, ClipInstruction)
-                        transition = (
-                            previous_instruction.transitions_after[0]
-                            if previous_instruction.transitions_after
-                            else None
-                        )
                         transition_name = self._fast_xfade_name(transition) if transition else "fade"
                         offset = max(current_duration - overlap, 0.0)
                         filters.append(
