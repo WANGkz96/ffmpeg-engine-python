@@ -497,7 +497,19 @@ async def _run_render_worker(payload: RenderRequest, request: Request) -> Render
                 except asyncio.TimeoutError:
                     continue
         finally:
-            stderr_bytes = await stderr_task
+            # A descendant can inherit stderr and keep the pipe open after the
+            # render worker itself has exited. Do not let that orphaned pipe
+            # keep the HTTP response and the per-output lock alive forever.
+            try:
+                stderr_bytes = await asyncio.wait_for(stderr_task, timeout=5.0)
+            except asyncio.TimeoutError:
+                stderr_task.cancel()
+                try:
+                    await stderr_task
+                except asyncio.CancelledError:
+                    pass
+                logger.warning("Render worker pid=%s exited but stderr did not close; continuing", process.pid)
+                stderr_bytes = b""
 
         if not result_path.exists():
             stderr_tail = _trim_stderr_tail(stderr_bytes)
