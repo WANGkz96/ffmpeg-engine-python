@@ -2875,8 +2875,6 @@ class VideoEngine:
                 "bottom": "slidedown",
             }.get(direction, "slideleft")
         if transition.type == TransitionType.MOTION_BLUR:
-            if transition.fade:
-                return "hblur"
             return "fade"
         return "fade"
 
@@ -2915,17 +2913,41 @@ class VideoEngine:
         if duration <= 0.0:
             return []
 
-        radius = max(min(int(round(float(transition.blur_strength or 0.0) / 8.0)), 64), 2)
+        # The legacy MoviePy implementation animated a directional box blur on
+        # every frame. avgblur does not accept a time expression for its kernel,
+        # so approximate the same quadratic velocity curve with short windows.
+        # This is deliberately applied after the whip-pan scene is composed.
+        max_strength = max(min(float(transition.blur_strength or 0.0), 1023.0), 0.0)
+        if max_strength < 2.0:
+            return []
         direction = transition.direction.value if hasattr(transition.direction, "value") else str(transition.direction)
         vertical = transition.type == TransitionType.WHIP_PAN and direction in {"top", "bottom"}
-        size_x, size_y = (1, radius) if vertical else (radius, 1)
-        if phase == "intro":
-            enable = f"lte(t\\,{duration:.6f})"
-        else:
-            enable = f"gte(t\\,{max(float(clip_duration) - duration, 0.0):.6f})"
-        result = [f"avgblur=sizeX={size_x}:sizeY={size_y}:enable='{enable}'"]
-        if transition.glow:
-            result.append(f"eq=brightness=0.12:enable='{enable}'")
+        window_count = 8
+        start_offset = 0.0 if phase in {"intro", "between"} else max(float(clip_duration) - duration, 0.0)
+        result: list[str] = []
+        for window_index in range(window_count):
+            window_start = start_offset + duration * window_index / window_count
+            window_end = start_offset + duration * (window_index + 1) / window_count
+            progress = (window_index + 0.5) / window_count
+            if phase == "intro":
+                factor = (1.0 - progress) ** 2
+            elif phase == "outro":
+                factor = progress ** 2
+            else:
+                factor = 4.0 * progress**2 if progress < 0.5 else 4.0 * (1.0 - progress) ** 2
+            kernel = int(round(max_strength * factor))
+            if kernel < 2:
+                continue
+            if kernel % 2 == 0:
+                kernel += 1
+            size_x, size_y = (1, kernel) if vertical else (kernel, 1)
+            enable = f"between(t\\,{window_start:.6f}\\,{window_end:.6f})"
+            result.append(f"avgblur=sizeX={size_x}:sizeY={size_y}:enable='{enable}'")
+            # Glow belongs to motion_blur only in the legacy path. It followed
+            # the same quadratic curve as the blur strength.
+            if transition.type == TransitionType.MOTION_BLUR and transition.glow:
+                brightness = min(0.5 * factor, 0.5)
+                result.append(f"eq=brightness={brightness:.6f}:enable='{enable}'")
         return result
 
     @staticmethod
@@ -2959,21 +2981,23 @@ class VideoEngine:
                 local_start = start
                 progress = f"(t-{local_start:.6f})/{transition_duration:.6f}"
                 enabled = f"between(t\\,{local_start:.6f}\\,{local_start + transition_duration:.6f})"
+                eased = f"(1-pow(1-({progress})\\,3))"
                 values = {
-                    "left": (f"{width}-{progress}*{width}", None),
-                    "right": (f"-{width}+{progress}*{width}", None),
-                    "top": (None, f"{height}-{progress}*{height}"),
-                    "bottom": (None, f"-{height}+{progress}*{height}"),
+                    "left": (f"{width}-{eased}*{width}", None),
+                    "right": (f"-{width}+{eased}*{width}", None),
+                    "top": (None, f"{height}-{eased}*{height}"),
+                    "bottom": (None, f"-{height}+{eased}*{height}"),
                 }
             else:
                 local_start = max(end - transition_duration, start)
                 progress = f"(t-{local_start:.6f})/{transition_duration:.6f}"
                 enabled = f"between(t\\,{local_start:.6f}\\,{end:.6f})"
+                eased = f"pow(({progress})\\,3)"
                 values = {
-                    "left": (f"-{progress}*{width}", None),
-                    "right": (f"{progress}*{width}", None),
-                    "top": (None, f"-{progress}*{height}"),
-                    "bottom": (None, f"{progress}*{height}"),
+                    "left": (f"-{eased}*{width}", None),
+                    "right": (f"{eased}*{width}", None),
+                    "top": (None, f"-{eased}*{height}"),
+                    "bottom": (None, f"{eased}*{height}"),
                 }
             x_value, y_value = values.get(direction, values["left"])
             if x_value is not None:
@@ -2984,6 +3008,87 @@ class VideoEngine:
         append_motion(item.get("intro_transition"), "intro")
         append_motion(item.get("outro_transition"), "outro")
         return ("+".join(x_terms) or "0", "+".join(y_terms) or "0")
+
+    def _build_fast_whip_pan_between_filters(
+        self,
+        previous_label: str,
+        next_label: str,
+        output_label: str,
+        sequence_index: int,
+        transition: TransitionInstruction,
+        previous_duration: float,
+        next_duration: float,
+        overlap: float,
+        target_resolution: tuple[int, int],
+        fps: int,
+    ) -> list[str]:
+        """Build the legacy whip-pan scene in FFmpeg without reducing it to xfade."""
+        width, height = target_resolution
+        duration = max(overlap, 0.001)
+        body_duration = max(previous_duration - duration, 0.0)
+        rest_duration = max(next_duration - duration, 0.0)
+        direction = transition.direction.value if hasattr(transition.direction, "value") else str(transition.direction)
+        dx, dy = {
+            "left": (-width, 0),
+            "right": (width, 0),
+            "top": (0, -height),
+            "bottom": (0, height),
+        }.get(direction, (-width, 0))
+        progress = f"(t/{duration:.6f})"
+        eased = (
+            f"if(lt({progress}\\,0.5)\\,4*pow({progress}\\,3)\\,"
+            f"1-pow(-2*{progress}+2\\,3)/2)"
+        )
+        previous_x = f"({dx})*({eased})"
+        previous_y = f"({dy})*({eased})"
+        next_x = f"(-({dx}))+({dx})*({eased})"
+        next_y = f"(-({dy}))+({dy})*({eased})"
+
+        body_label = f"vwhipbody{sequence_index}"
+        tail_label = f"vwhiptail{sequence_index}"
+        head_label = f"vwhiphead{sequence_index}"
+        rest_label = f"vwhiprest{sequence_index}"
+        black_label = f"vwhipblack{sequence_index}"
+        moved_previous_label = f"vwhipprev{sequence_index}"
+        scene_label = f"vwhipscene{sequence_index}"
+        transition_label = f"vwhiptransition{sequence_index}"
+        filters: list[str] = []
+        parts: list[str] = []
+
+        if body_duration > 1e-6:
+            filters.append(
+                f"[{previous_label}]trim=duration={body_duration:.6f},setpts=PTS-STARTPTS[{body_label}]"
+            )
+            parts.append(body_label)
+        filters.append(
+            f"[{previous_label}]trim=start={body_duration:.6f}:end={previous_duration:.6f},"
+            f"setpts=PTS-STARTPTS[{tail_label}]"
+        )
+        filters.append(f"[{next_label}]trim=duration={duration:.6f},setpts=PTS-STARTPTS[{head_label}]")
+        filters.append(f"color=c=black:s={width}x{height}:r={fps}:d={duration:.6f}[{black_label}]")
+        filters.append(
+            f"[{black_label}][{tail_label}]overlay=x='{previous_x}':y='{previous_y}':"
+            f"eval=frame:shortest=1[{moved_previous_label}]"
+        )
+        filters.append(
+            f"[{moved_previous_label}][{head_label}]overlay=x='{next_x}':y='{next_y}':"
+            f"eval=frame:shortest=1[{scene_label}]"
+        )
+        blur_filters = self._fast_transition_edge_filters(transition, duration, "between")
+        if blur_filters:
+            filters.append(f"[{scene_label}]{','.join(blur_filters)},format=yuv420p[{transition_label}]")
+        else:
+            filters.append(f"[{scene_label}]format=yuv420p[{transition_label}]")
+        parts.append(transition_label)
+        if rest_duration > 1e-6:
+            filters.append(f"[{next_label}]trim=start={duration:.6f},setpts=PTS-STARTPTS[{rest_label}]")
+            parts.append(rest_label)
+
+        if len(parts) == 1:
+            filters.append(f"[{parts[0]}]null[{output_label}]")
+        else:
+            filters.append(f"{''.join(f'[{part}]' for part in parts)}concat=n={len(parts)}:v=1:a=0[{output_label}]")
+        return filters
 
     def _fast_clip_trim_window(
         self,
@@ -3704,17 +3809,25 @@ class VideoEngine:
                     previous_transition = None
                     if instruction_index > 0 and request.clips[instruction_index - 1].transitions_after:
                         previous_transition = request.clips[instruction_index - 1].transitions_after[0]
-                    main_filters.extend(
-                        self._fast_transition_edge_filters(previous_transition, duration, "intro")
-                    )
+                    # A whip-pan between main clips is composed as one moving
+                    # scene below. Applying blur to each source here would blur
+                    # the seam twice and reintroduce the old visible line.
+                    if previous_transition and previous_transition.type == TransitionType.MOTION_BLUR:
+                        main_filters.extend(
+                            self._fast_transition_edge_filters(previous_transition, duration, "intro")
+                        )
                     outro_transition = (
                         instruction.transitions_after[0]
                         if instruction.transitions_after
                         else None
                     )
-                    main_filters.extend(
-                        self._fast_transition_edge_filters(outro_transition, duration, "outro")
-                    )
+                    if outro_transition and (
+                        outro_transition.type == TransitionType.MOTION_BLUR
+                        or instruction_index == len(request.clips) - 1
+                    ):
+                        main_filters.extend(
+                            self._fast_transition_edge_filters(outro_transition, duration, "outro")
+                        )
                     if previous_transition and previous_transition.type == TransitionType.FADE_BLACK:
                         fade_in = min(float(previous_transition.duration or 0.0), duration)
                         if fade_in > 0.0:
@@ -3745,7 +3858,23 @@ class VideoEngine:
                     next_duration = max(float(item["duration"]), 0.001)
                     next_label = f"vbase{sequence_index}"
                     overlap = max(current_duration - desired_start, 0.0)
-                    if overlap > 1e-6:
+                    if overlap > 1e-6 and transition and transition.type == TransitionType.WHIP_PAN:
+                        filters.extend(
+                            self._build_fast_whip_pan_between_filters(
+                                previous_label=current_label,
+                                next_label=next_input_label,
+                                output_label=next_label,
+                                sequence_index=sequence_index,
+                                transition=transition,
+                                previous_duration=current_duration,
+                                next_duration=next_duration,
+                                overlap=overlap,
+                                target_resolution=target_resolution,
+                                fps=request.output.fps,
+                            )
+                        )
+                        current_duration = max(current_duration + next_duration - overlap, desired_start + next_duration)
+                    elif overlap > 1e-6:
                         overlap = min(overlap, current_duration, next_duration)
                         previous_item = main_labels[sequence_index - 1][1]
                         previous_instruction = previous_item["instruction"]
