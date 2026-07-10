@@ -345,9 +345,24 @@ class AudioInstruction(BaseModel):
     source: Path
     start: float = Field(0.0, ge=0.0)
     end: Optional[float] = Field(None, gt=0.0)
+    at: Optional[float] = Field(None, ge=0.0)
+    timeline_start: Optional[float] = Field(None, ge=0.0)
     volume: float = Field(1.0, ge=0.0)
     fade_in: float = Field(0.0, ge=0.0)
     fade_out: float = Field(0.0, ge=0.0)
+
+    @root_validator(pre=True)
+    def normalize_audio_aliases(cls, values):
+        if not isinstance(values, dict):
+            return values
+        if "timeline_start" not in values:
+            for alias in ("timelineStart", "timeline_at", "timelineAt"):
+                if alias in values:
+                    values = {**values, "timeline_start": values.get(alias)}
+                    break
+        if "at" not in values and "timeline_start" in values:
+            values = {**values, "at": values.get("timeline_start")}
+        return values
 
 
 class TextAnimationInstruction(BaseModel):

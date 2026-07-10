@@ -3,6 +3,7 @@
 media
 examples
 .idea
+.env
 __pycache__
 ffmpeg_engine/__pycache__/
 *_finalTEMP_MPY_wvf_snd.mp4

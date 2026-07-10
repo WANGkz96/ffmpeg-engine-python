@@ -32,6 +32,7 @@ logger = logging.getLogger(__name__)
 
 app = FastAPI(title="FFmpeg Engine", version="1.0.0")
 engine = VideoEngine(workspace=Path("renders"))
+VALIDATED_VIDEO_EXTENSIONS = {".mp4", ".mov", ".webm", ".mkv"}
 
 
 class CleanupRequest(BaseModel):
@@ -111,6 +112,15 @@ def _get_disconnect_poll_seconds() -> float:
     return max(value, 0.1)
 
 
+def _cancel_render_on_client_disconnect() -> bool:
+    raw_value = os.getenv("CANCEL_RENDER_ON_CLIENT_DISCONNECT", "").strip().lower()
+    if raw_value in {"1", "true", "yes", "on"}:
+        return True
+    if raw_value in {"0", "false", "no", "off"}:
+        return False
+    return False
+
+
 render_mode_semaphore = asyncio.Semaphore(_get_render_mode_concurrency())
 concat_mode_semaphore = asyncio.Semaphore(_get_concat_mode_concurrency())
 output_lock_registry_guard = asyncio.Lock()
@@ -171,6 +181,51 @@ def _delete_path(path: Path) -> None:
         shutil.rmtree(path)
     else:
         path.unlink()
+
+
+def _remove_output_file(path: Path) -> None:
+    try:
+        if path.exists() and path.is_file():
+            path.unlink()
+    except OSError as exc:
+        logger.warning("Failed to remove render artifact %s: %s", path, exc)
+
+
+def _is_valid_render_media(path: Path) -> bool:
+    if path.suffix.lower() not in VALIDATED_VIDEO_EXTENSIONS:
+        return True
+    try:
+        process = subprocess.run(
+            [
+                "ffprobe",
+                "-v",
+                "error",
+                "-select_streams",
+                "v:0",
+                "-show_entries",
+                "stream=codec_type:format=duration,format_name",
+                "-of",
+                "json",
+                str(path),
+            ],
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            check=False,
+            timeout=30.0,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return False
+    if process.returncode != 0:
+        return False
+    try:
+        payload = json.loads(process.stdout or "{}")
+        duration = float((payload.get("format") or {}).get("duration") or 0.0)
+        streams = payload.get("streams") or []
+    except (TypeError, ValueError, json.JSONDecodeError):
+        return False
+    return duration > 0.0 and any(stream.get("codec_type") == "video" for stream in streams)
 
 
 def _is_locked_output_path(path: Path) -> bool:
@@ -424,10 +479,19 @@ async def _run_render_worker(payload: RenderRequest, request: Request) -> Render
 
         try:
             poll_seconds = _get_disconnect_poll_seconds()
+            cancel_on_disconnect = _cancel_render_on_client_disconnect()
+            disconnected_logged = False
             while process.returncode is None:
                 if await request.is_disconnected():
-                    await _terminate_render_process(process)
-                    raise HTTPException(status_code=499, detail="Client disconnected; render cancelled")
+                    if cancel_on_disconnect:
+                        await _terminate_render_process(process)
+                        raise HTTPException(status_code=499, detail="Client disconnected; render cancelled")
+                    if not disconnected_logged:
+                        logger.warning(
+                            "Client disconnected; render worker pid=%s will continue until completion",
+                            process.pid,
+                        )
+                        disconnected_logged = True
                 try:
                     await asyncio.wait_for(process.wait(), timeout=poll_seconds)
                 except asyncio.TimeoutError:
@@ -519,6 +583,9 @@ async def list_downloads(request: Request) -> dict:
         for file_path in sorted(workspace.glob("*")):
             if not file_path.is_file():
                 continue
+            if not _is_valid_render_media(file_path):
+                _remove_output_file(file_path)
+                continue
             items.append(
                 {
                     "filename": file_path.name,
@@ -534,6 +601,11 @@ async def download_render(filename: str) -> Response:
     target = _resolve_download_target(filename)
     if not target.exists() or not target.is_file():
         raise HTTPException(status_code=404, detail="Render file not found")
+    if _is_locked_output_path(target):
+        raise HTTPException(status_code=409, detail="Render file is still being produced")
+    if not _is_valid_render_media(target):
+        _remove_output_file(target)
+        raise HTTPException(status_code=404, detail="Render file is incomplete or invalid and was removed")
     return FileResponse(target, filename=target.name)
 
 
@@ -561,18 +633,23 @@ async def render_endpoint(
     logger.info("Incoming render request from %s target=%s", request.client, output_key)
     lock_acquired = False
     slot_acquired = False
+    result: RenderResult | None = None
     try:
         await _acquire_lock_with_disconnect(output_lock, request, f"output lock for {Path(output_key).name}")
         lock_acquired = True
+        _remove_output_file(Path(output_key))
         await _acquire_semaphore_with_disconnect(mode_semaphore, request, f"{payload.mode.value} slot")
         slot_acquired = True
         result = await _run_render_worker(payload, request)
     finally:
+        if lock_acquired and (result is None or result.status != "ok"):
+            _remove_output_file(Path(output_key))
         if slot_acquired:
             mode_semaphore.release()
         if lock_acquired:
             output_lock.release()
 
+    assert result is not None
     if result.status != "ok":
         raise HTTPException(status_code=400, detail=result.message or "Rendering failed")
 

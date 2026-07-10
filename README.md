@@ -75,6 +75,12 @@ Performance knobs:
 - `RENDER_MODE_CONCURRENCY` limits how many `mode=render` jobs can run at once. Default in compose: `4`.
 - `CONCAT_NORMALIZE_CONCURRENCY` limits how many `mode=concat_normalize` jobs can run at once. Default in compose: `1` (extra requests wait in queue).
 - `FFMPEG_USE_GPU=1` enables NVENC for output encoding when available. This is already enabled in the current container.
+- `FFMPEG_RENDER_FAST_PATH=1` lets compatible `mode=render` requests bypass MoviePy frame generation and use an FFmpeg-only linear render path.
+- `FFMPEG_RENDER_FAST_PATH_STRICT=1` prevents silent fallback to the old MoviePy path when the fast path is enabled.
+- `FFMPEG_RENDER_APPROXIMATE_TRANSITIONS=1` allows the fast render path to approximate `whip_pan` / `motion_blur` transitions with FFmpeg `xfade` transitions; set it to `0` for exact MoviePy rendering.
+- `FFMPEG_FAST_RENDER_NORMALIZE_CONCURRENCY` controls how many independent clip-normalization FFmpeg processes run at once in the fast render path. Default: `4`.
+- `FFMPEG_COMMAND_TIMEOUT_SECONDS=0` disables render-command timeouts; long renders can run for hours.
+- `FFMPEG_FILTER_COMPLEX_THREADS` controls the worker pool used by FFmpeg complex filter graphs. Default: `8`.
 - `FFMPEG_THREADS` controls FFmpeg encoder/worker threads. Default in compose: `8`.
 - `FFMPEG_FILTER_THREADS` controls FFmpeg filter graph threads. Default in compose: `8`.
 - `FFMPEG_FONT_DIRS` controls font folders scanned for `texts[].font` lookup. Default in compose: `/system_fonts/windows:/system_fonts/windows_user:/usr/share/fonts:/usr/local/share/fonts`.

@@ -2,10 +2,12 @@
 from __future__ import annotations
 
 import gc
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from functools import lru_cache
 import logging
 import math
 import os
+import shutil
 import subprocess
 import tempfile
 from pathlib import Path
@@ -326,10 +328,17 @@ class VideoEngine:
         return max(thread_count, 1)
 
     @staticmethod
+    def _get_bool_env(env_name: str, default: bool = False) -> bool:
+        raw_value = os.getenv(env_name, "").strip().lower()
+        if not raw_value:
+            return default
+        return raw_value in {"1", "true", "yes", "on"}
+
+    @staticmethod
     def _get_timeout_seconds(env_name: str, default: float) -> Optional[float]:
         raw_value = os.getenv(env_name, "").strip()
         if not raw_value:
-            return default
+            return default if default > 0 else None
         try:
             timeout_seconds = float(raw_value)
         except ValueError:
@@ -884,6 +893,9 @@ class VideoEngine:
         template = resolve_template(request.output.template)
         target_resolution = request.output.resolution.size if request.output.resolution else template.resolution
         logger.info("Using target resolution %s", target_resolution)
+        fast_result = self._try_render_fast_path(request, target_resolution)
+        if fast_result is not None:
+            return fast_result
         return self._render_channels(request, target_resolution)
 
         clips = []
@@ -1497,10 +1509,21 @@ class VideoEngine:
         cursor: float,
         reference_duration: float,
     ) -> None:
-        if entry_index <= 0:
-            return
         kind, _source_index, instruction, _trim_to_reference = entries[entry_index]
         if kind not in {"attachment", "insert"} or not instruction.transitions_before:
+            return
+
+        current_duration = self._get_instruction_output_duration(instruction)
+        current_start = self._resolve_instruction_timeline_start_for_adjacency(
+            instruction,
+            cursor,
+            current_duration,
+            reference_duration,
+        )
+        if current_start <= ADJACENT_INSERT_TOLERANCE_SEC:
+            instruction.transitions_before = []
+            return
+        if entry_index <= 0:
             return
 
         previous_kind, _previous_source_index, previous_instruction, _previous_trim = entries[entry_index - 1]
@@ -1508,17 +1531,10 @@ class VideoEngine:
             return
 
         previous_duration = self._get_instruction_output_duration(previous_instruction)
-        current_duration = self._get_instruction_output_duration(instruction)
         previous_start = self._resolve_instruction_timeline_start_for_adjacency(
             previous_instruction,
             max(cursor - previous_duration, 0.0),
             previous_duration,
-            reference_duration,
-        )
-        current_start = self._resolve_instruction_timeline_start_for_adjacency(
-            instruction,
-            cursor,
-            current_duration,
             reference_duration,
         )
         previous_end = previous_start + previous_duration
@@ -2411,20 +2427,38 @@ class VideoEngine:
             except OSError as exc:
                 logger.warning("Audio loading failed (%s): %s", source_path, exc)
                 continue
-            start = max(instruction.start, 0.0)
-            end = instruction.end if instruction.end else clip.duration
-            end = min(end, clip.duration)
-            if end <= start:
+            source_start = max(float(instruction.start or 0.0), 0.0)
+            source_end = float(instruction.end) if instruction.end else float(clip.duration or 0.0)
+            source_end = min(source_end, float(clip.duration or 0.0))
+            if source_end <= source_start:
                 clip.close()
                 continue
-            clip = clip.subclip(start, end)
+
+            timeline_start = instruction.timeline_start
+            if timeline_start is None:
+                timeline_start = instruction.at
+            if timeline_start is None:
+                timeline_start = source_start
+            timeline_start = max(float(timeline_start or 0.0), 0.0)
+
+            remaining_duration = max(duration - timeline_start, 0.0)
+            if remaining_duration <= 0.0:
+                clip.close()
+                continue
+
+            source_end = min(source_end, source_start + remaining_duration)
+            if source_end <= source_start:
+                clip.close()
+                continue
+
+            clip = clip.subclip(source_start, source_end)
             clip = clip.volumex(instruction.volume)
             if instruction.fade_in:
                 clip = clip.audio_fadein(instruction.fade_in)
             if instruction.fade_out:
                 clip = clip.audio_fadeout(instruction.fade_out)
             clip = self._guard_audio_clip_bounds(clip)
-            clip = clip.set_start(start)
+            clip = clip.set_start(timeline_start)
             tracks.append(clip)
 
         tracks.extend(self._build_insert_audio_tracks(request.attachments, duration, "attachment"))
@@ -2556,7 +2590,15 @@ class VideoEngine:
     def _build_ffmpeg_runtime_args(self) -> List[str]:
         thread_count = self._get_thread_count("FFMPEG_THREADS")
         filter_thread_count = self._get_thread_count("FFMPEG_FILTER_THREADS", thread_count)
-        return ["-threads", str(thread_count), "-filter_threads", str(filter_thread_count)]
+        complex_thread_count = self._get_thread_count("FFMPEG_FILTER_COMPLEX_THREADS", filter_thread_count)
+        return [
+            "-threads",
+            str(thread_count),
+            "-filter_threads",
+            str(filter_thread_count),
+            "-filter_complex_threads",
+            str(complex_thread_count),
+        ]
 
     def _build_fast_video_codec_args(self, bitrate: Optional[str], extension: Optional[str] = None) -> List[str]:
         use_gpu = os.getenv("FFMPEG_USE_GPU", "0").lower() in {"1", "true", "yes", "on"}
@@ -2626,7 +2668,7 @@ class VideoEngine:
         command: List[str],
         stage: str,
         timeout_env: str = "FFMPEG_COMMAND_TIMEOUT_SECONDS",
-        default_timeout_seconds: float = 900.0,
+        default_timeout_seconds: float = 0.0,
     ) -> None:
         timeout_seconds = self._get_timeout_seconds(timeout_env, default_timeout_seconds)
         try:
@@ -2714,6 +2756,1445 @@ class VideoEngine:
             details = (process.stderr or process.stdout or "").strip()
             raise VideoEngineError(f"ffprobe audio stream check failed for {path}: {details}")
         return bool((process.stdout or "").strip())
+
+    def _try_render_fast_path(
+        self,
+        request: RenderRequest,
+        target_resolution: tuple[int, int],
+    ) -> Optional[RenderResult]:
+        if not self._get_bool_env("FFMPEG_RENDER_FAST_PATH", False):
+            return None
+
+        strict = self._get_bool_env("FFMPEG_RENDER_FAST_PATH_STRICT", True)
+        rejection_reason = self._fast_render_rejection_reason(request)
+        if rejection_reason:
+            logger.info("Fast render path skipped: %s", rejection_reason)
+            if strict:
+                raise VideoEngineError(f"Fast render path unavailable: {rejection_reason}")
+            return None
+
+        try:
+            logger.info("Using FFmpeg fast render path for %s", request.output.filename)
+            if self._requires_fast_overlay_timeline(request):
+                return self._render_fast_overlay_timeline(request, target_resolution)
+            return self._render_fast_linear(request, target_resolution)
+        except Exception as exc:
+            logger.warning("Fast render path failed; falling back to MoviePy render: %s", exc)
+            if strict:
+                raise VideoEngineError(f"Fast render path failed: {exc}") from exc
+            return None
+
+    def _fast_render_rejection_reason(self, request: RenderRequest) -> Optional[str]:
+        extension = request.output.format.lower().lstrip(".")
+        if extension not in {"mp4", "mov", "mkv"}:
+            return f"unsupported output format {request.output.format!r}"
+        if not request.clips:
+            return "no clips"
+        if request.timeline or request.images or request.show_source:
+            return "request uses layered/timeline features"
+        if request.zoom_border:
+            return "zoom_border is not supported by fast render path yet"
+
+        approximate = self._get_bool_env("FFMPEG_RENDER_APPROXIMATE_TRANSITIONS", False)
+        for index, instruction in enumerate(request.clips):
+            if instruction.chroma_key.enabled:
+                return "chroma_key is not supported by fast render path"
+            if any(
+                abs(float(value or 0.0)) > 1e-9
+                for value in (
+                    instruction.adjustments.brightness,
+                    instruction.adjustments.contrast,
+                    instruction.adjustments.saturation,
+                    instruction.adjustments.hue,
+                )
+            ):
+                return "clip adjustments are not supported by fast render path"
+            if len(instruction.transitions_before) > 1 or len(instruction.transitions_after) > 1:
+                return "multiple transitions per clip are not supported by fast render path"
+            for transition in [*instruction.transitions_before, *instruction.transitions_after]:
+                if transition.type in {TransitionType.NONE, TransitionType.CROSSFADE, TransitionType.FADE_BLACK}:
+                    continue
+                if transition.type in {TransitionType.WHIP_PAN, TransitionType.MOTION_BLUR} and approximate:
+                    continue
+                return f"transition {transition.type.value!r} requires MoviePy exact render"
+            if index == len(request.clips) - 1 and instruction.transitions_after:
+                outro = instruction.transitions_after[0]
+                if outro.type not in {TransitionType.NONE, TransitionType.FADE_BLACK}:
+                    return "last clip outro transition requires MoviePy exact render"
+
+        for label, instructions in (("attachment", request.attachments), ("insert", request.inserts)):
+            for instruction in instructions:
+                if any(
+                    abs(float(value or 0.0)) > 1e-9
+                    for value in (
+                        instruction.adjustments.brightness,
+                        instruction.adjustments.contrast,
+                        instruction.adjustments.saturation,
+                        instruction.adjustments.hue,
+                    )
+                ):
+                    return f"{label} adjustments are not supported by fast render path"
+                if abs(float(instruction.playback_rate or 1.0) - 1.0) > 1e-9:
+                    return f"{label} playback_rate is not supported by fast render path"
+                if len(instruction.transitions_before) > 1 or len(instruction.transitions_after) > 1:
+                    return f"multiple transitions per {label} are not supported by fast render path"
+                for transition in [*instruction.transitions_before, *instruction.transitions_after]:
+                    if transition.type in {TransitionType.NONE, TransitionType.CROSSFADE, TransitionType.FADE_BLACK}:
+                        continue
+                    if transition.type in {TransitionType.WHIP_PAN, TransitionType.MOTION_BLUR} and approximate:
+                        continue
+                    return f"{label} transition {transition.type.value!r} requires MoviePy exact render"
+
+        for text in request.texts:
+            anim = text.animation
+            if abs(float(getattr(anim, "scale_from", 1.0) or 1.0) - 1.0) > 1e-9:
+                return "text scale animation is not supported by fast render path"
+            if abs(float(getattr(anim, "scale_to", 1.0) or 1.0) - 1.0) > 1e-9:
+                return "text scale animation is not supported by fast render path"
+
+        return None
+
+    @staticmethod
+    def _requires_fast_overlay_timeline(request: RenderRequest) -> bool:
+        if request.attachments or request.inserts:
+            return True
+        return any(VideoEngine._has_explicit_at(instruction) for instruction in request.clips)
+
+    @staticmethod
+    def _fast_xfade_name(transition: TransitionInstruction) -> str:
+        if transition.type == TransitionType.CROSSFADE:
+            return "fade"
+        if transition.type == TransitionType.FADE_BLACK:
+            return "fadeblack"
+        if transition.type == TransitionType.WHIP_PAN:
+            direction = transition.direction.value if hasattr(transition.direction, "value") else str(transition.direction)
+            return {
+                "left": "slideleft",
+                "right": "slideright",
+                "top": "slideup",
+                "bottom": "slidedown",
+            }.get(direction, "slideleft")
+        if transition.type == TransitionType.MOTION_BLUR:
+            if transition.fade:
+                return "hblur"
+            return "fade"
+        return "fade"
+
+    @staticmethod
+    def _fast_transition_uses_xfade(transition: Optional[TransitionInstruction]) -> bool:
+        if not transition:
+            return False
+        return transition.type in {
+            TransitionType.CROSSFADE,
+            TransitionType.WHIP_PAN,
+            TransitionType.MOTION_BLUR,
+        }
+
+    def _fast_transition_overlap(
+        self,
+        transition: Optional[TransitionInstruction],
+        previous_duration: float,
+        current_base_duration: float,
+    ) -> float:
+        if not self._fast_transition_uses_xfade(transition):
+            return 0.0
+        if transition.type == TransitionType.MOTION_BLUR and not transition.fade:
+            return 0.0
+        requested = max(float(transition.duration or 0.0), 0.0)
+        return max(min(requested, previous_duration, current_base_duration), 0.0)
+
+    @staticmethod
+    def _fast_transition_edge_filters(
+        transition: Optional[TransitionInstruction],
+        clip_duration: float,
+        phase: str,
+    ) -> list[str]:
+        if transition is None or transition.type not in {TransitionType.WHIP_PAN, TransitionType.MOTION_BLUR}:
+            return []
+        duration = min(max(float(transition.duration or 0.0), 0.0), max(float(clip_duration), 0.0))
+        if duration <= 0.0:
+            return []
+
+        radius = max(min(int(round(float(transition.blur_strength or 0.0) / 8.0)), 64), 2)
+        direction = transition.direction.value if hasattr(transition.direction, "value") else str(transition.direction)
+        vertical = transition.type == TransitionType.WHIP_PAN and direction in {"top", "bottom"}
+        size_x, size_y = (1, radius) if vertical else (radius, 1)
+        if phase == "intro":
+            enable = f"lte(t\\,{duration:.6f})"
+        else:
+            enable = f"gte(t\\,{max(float(clip_duration) - duration, 0.0):.6f})"
+        result = [f"avgblur=sizeX={size_x}:sizeY={size_y}:enable='{enable}'"]
+        if transition.glow:
+            result.append(f"eq=brightness=0.12:enable='{enable}'")
+        return result
+
+    @staticmethod
+    def _fast_transition_uses_alpha_fade(transition: Optional[TransitionInstruction]) -> bool:
+        if transition is None:
+            return False
+        if transition.type in {TransitionType.CROSSFADE, TransitionType.FADE_BLACK}:
+            return True
+        return transition.type == TransitionType.MOTION_BLUR and transition.fade
+
+    @staticmethod
+    def _fast_overlay_position_expressions(
+        item: dict[str, object],
+        target_resolution: tuple[int, int],
+    ) -> tuple[str, str]:
+        width, height = target_resolution
+        start = max(float(item["start"]), 0.0)
+        duration = max(float(item["duration"]), 0.001)
+        end = start + duration
+        x_terms: list[str] = []
+        y_terms: list[str] = []
+
+        def append_motion(transition: Optional[TransitionInstruction], phase: str) -> None:
+            if transition is None or transition.type != TransitionType.WHIP_PAN:
+                return
+            transition_duration = min(max(float(transition.duration or 0.0), 0.0), duration)
+            if transition_duration <= 0.0:
+                return
+            direction = transition.direction.value if hasattr(transition.direction, "value") else str(transition.direction)
+            if phase == "intro":
+                local_start = start
+                progress = f"(t-{local_start:.6f})/{transition_duration:.6f}"
+                enabled = f"between(t\\,{local_start:.6f}\\,{local_start + transition_duration:.6f})"
+                values = {
+                    "left": (f"{width}-{progress}*{width}", None),
+                    "right": (f"-{width}+{progress}*{width}", None),
+                    "top": (None, f"{height}-{progress}*{height}"),
+                    "bottom": (None, f"-{height}+{progress}*{height}"),
+                }
+            else:
+                local_start = max(end - transition_duration, start)
+                progress = f"(t-{local_start:.6f})/{transition_duration:.6f}"
+                enabled = f"between(t\\,{local_start:.6f}\\,{end:.6f})"
+                values = {
+                    "left": (f"-{progress}*{width}", None),
+                    "right": (f"{progress}*{width}", None),
+                    "top": (None, f"-{progress}*{height}"),
+                    "bottom": (None, f"{progress}*{height}"),
+                }
+            x_value, y_value = values.get(direction, values["left"])
+            if x_value is not None:
+                x_terms.append(f"if({enabled}\\,{x_value}\\,0)")
+            if y_value is not None:
+                y_terms.append(f"if({enabled}\\,{y_value}\\,0)")
+
+        append_motion(item.get("intro_transition"), "intro")
+        append_motion(item.get("outro_transition"), "outro")
+        return ("+".join(x_terms) or "0", "+".join(y_terms) or "0")
+
+    def _fast_clip_trim_window(
+        self,
+        instruction: ClipInstruction,
+        source_duration: float,
+        transition_padding: float,
+    ) -> tuple[float, float, float]:
+        start = max(float(instruction.start or 0.0), 0.0)
+        end = float(instruction.end) if instruction.end else source_duration
+        end = min(end, source_duration)
+        if end <= start:
+            end = source_duration
+
+        playback_rate = max(float(instruction.playback_rate or 1.0), 1e-6)
+        base_duration = max(end - start, 0.0) / playback_rate
+        transition_padding = max(float(transition_padding or 0.0), 0.0)
+        raw_padding_needed = transition_padding * playback_rate
+        extend_before = min(raw_padding_needed, start)
+        raw_padding_remaining = max(raw_padding_needed - extend_before, 0.0)
+        extend_after = min(raw_padding_remaining, max(source_duration - end, 0.0))
+        trim_start = max(start - extend_before, 0.0)
+        trim_end = min(end + extend_after, source_duration)
+        target_duration = max(base_duration + transition_padding, trim_end - trim_start)
+        return trim_start, trim_end, target_duration
+
+    def _build_fast_clip_filter_graph(
+        self,
+        instruction: ClipInstruction,
+        target_resolution: tuple[int, int],
+        target_fps: int,
+        output_duration: float,
+        intro_fade_black: float,
+        outro_fade_black: float,
+        timing_stretch: float = 1.0,
+    ) -> str:
+        target_w, target_h = target_resolution
+        source_filters = ["setpts=PTS-STARTPTS"]
+        playback_rate = max(float(instruction.playback_rate or 1.0), 1e-6)
+        if abs(playback_rate - 1.0) > 1e-9:
+            source_filters.append(f"setpts=PTS/{playback_rate:.9f}")
+        if timing_stretch > 1.0 + 1e-9:
+            source_filters.append(f"setpts=PTS*{timing_stretch:.9f}")
+        if instruction.mirror_horizontal:
+            source_filters.append("hflip")
+        zoom_filter = self._build_center_zoom_filter(instruction.effective_internal_zoom)
+        if zoom_filter:
+            source_filters.append(zoom_filter)
+        source_chain = ",".join(source_filters)
+
+        if instruction.fit_mode == FitMode.COVER:
+            graph = (
+                f"[0:v]{source_chain},"
+                f"scale={target_w}:{target_h}:force_original_aspect_ratio=increase:force_divisible_by=2,"
+                f"crop={target_w}:{target_h}:(iw-ow)/2:(ih-oh)/2,"
+                "setsar=1"
+            )
+        elif instruction.background_mode == BackgroundMode.COLOR or instruction.chroma_key.enabled:
+            if instruction.chroma_key.enabled:
+                key_color = instruction.chroma_key.color.as_tuple()
+                color = f"0x{key_color[0]:02x}{key_color[1]:02x}{key_color[2]:02x}"
+            else:
+                color = f"0x{instruction.background_color.r:02x}{instruction.background_color.g:02x}{instruction.background_color.b:02x}"
+            graph = (
+                f"[0:v]{source_chain},"
+                f"scale={target_w}:{target_h}:force_original_aspect_ratio=decrease:force_divisible_by=2,"
+                "setsar=1[fg];"
+                f"color=c={color}:s={target_w}x{target_h}:r={target_fps}:d={output_duration:.6f}[bg];"
+                "[bg][fg]overlay=(W-w)/2:(H-h)/2,setsar=1"
+            )
+        else:
+            sigma = max(float(instruction.background_color.a or 0.0) * 25.0, 5.0)
+            graph = (
+                f"[0:v]{source_chain},split=2[fgsrc][bgsrc];"
+                f"[bgsrc]scale={target_w}:{target_h}:force_original_aspect_ratio=increase:force_divisible_by=2,"
+                f"crop={target_w}:{target_h}:(iw-ow)/2:(ih-oh)/2,"
+                f"gblur=sigma={sigma:.3f},setsar=1[bg];"
+                f"[fgsrc]scale={target_w}:{target_h}:force_original_aspect_ratio=decrease:force_divisible_by=2,"
+                "setsar=1[fg];"
+                "[bg][fg]overlay=(W-w)/2:(H-h)/2,setsar=1"
+            )
+
+        tail_filters = [f"fps={target_fps}", "format=yuv420p"]
+        if intro_fade_black > 0.0:
+            tail_filters.append(f"fade=t=in:st=0:d={intro_fade_black:.6f}")
+        if outro_fade_black > 0.0:
+            fade_start = max(output_duration - outro_fade_black, 0.0)
+            tail_filters.append(f"fade=t=out:st={fade_start:.6f}:d={outro_fade_black:.6f}")
+        tail_filters.append("setpts=PTS-STARTPTS")
+        return f"{graph},{','.join(tail_filters)}[vout]"
+
+    def _normalize_clip_for_fast_render(
+        self,
+        instruction: ClipInstruction,
+        source_path: Path,
+        output_path: Path,
+        target_resolution: tuple[int, int],
+        target_fps: int,
+        bitrate: Optional[str],
+        transition_padding: float,
+        intro_fade_black: float,
+        outro_fade_black: float,
+    ) -> float:
+        source_duration = self._probe_duration_seconds(source_path)
+        trim_start, trim_end, output_duration = self._fast_clip_trim_window(
+            instruction,
+            source_duration,
+            transition_padding,
+        )
+        if trim_end <= trim_start:
+            raise VideoEngineError(f"Clip has no renderable duration: {source_path}")
+
+        filter_graph = self._build_fast_clip_filter_graph(
+            instruction,
+            target_resolution,
+            target_fps,
+            output_duration,
+            intro_fade_black,
+            outro_fade_black,
+            timing_stretch=max(
+                output_duration
+                / max((trim_end - trim_start) / max(float(instruction.playback_rate or 1.0), 1e-6), 1e-6),
+                1.0,
+            ),
+        )
+        command = [
+            "ffmpeg",
+            "-y",
+            "-nostdin",
+            "-hide_banner",
+            "-loglevel",
+            "error",
+            *self._build_ffmpeg_runtime_args(),
+        ]
+        if trim_start > 0:
+            command += ["-ss", f"{trim_start:.6f}"]
+        command += ["-i", str(source_path), "-t", f"{max(trim_end - trim_start, 0.001):.6f}"]
+        command += [
+            "-an",
+            "-filter_complex",
+            filter_graph,
+            "-map",
+            "[vout]",
+            "-dn",
+            "-map_metadata",
+            "-1",
+            *self._build_fast_video_codec_args(bitrate, output_path.suffix.lower().lstrip(".")),
+            "-t",
+            f"{output_duration:.6f}",
+        ]
+        if output_path.suffix.lower().lstrip(".") in {"mp4", "mov"}:
+            command += ["-movflags", "+faststart"]
+        command.append(str(output_path))
+        self._run_external_command(command, f"FFmpeg fast normalize clip {source_path.name}")
+        return self._probe_duration_seconds(output_path)
+
+    def _resolve_fast_overlay_position(
+        self,
+        position: str,
+        target_resolution: tuple[int, int],
+        clip_size: tuple[int, int],
+        bottom_offset_px: int | None = None,
+    ) -> tuple[int, int]:
+        x, y = self._resolve_position(position, target_resolution, clip_size, bottom_offset_px=bottom_offset_px)
+        target_w, target_h = target_resolution
+        clip_w, clip_h = clip_size
+        if x == "center":
+            x = (target_w - clip_w) / 2
+        if y == "center":
+            y = (target_h - clip_h) / 2
+        return max(int(round(float(x))), 0), max(int(round(float(y))), 0)
+
+    @staticmethod
+    def _ass_timestamp(seconds: float) -> str:
+        centiseconds = max(int(round(float(seconds) * 100.0)), 0)
+        hours, remainder = divmod(centiseconds, 360000)
+        minutes, remainder = divmod(remainder, 6000)
+        whole_seconds, fraction = divmod(remainder, 100)
+        return f"{hours}:{minutes:02d}:{whole_seconds:02d}.{fraction:02d}"
+
+    @staticmethod
+    def _ass_color_parts(color, default: tuple[int, int, int, int]) -> tuple[str, str]:
+        if color is None:
+            r, g, b, alpha = default
+        else:
+            r = int(color.r)
+            g = int(color.g)
+            b = int(color.b)
+            alpha = int(round(max(min(float(color.a), 1.0), 0.0) * 255.0))
+        ass_alpha = 255 - alpha
+        return f"&H{b:02X}{g:02X}{r:02X}&", f"&H{ass_alpha:02X}&"
+
+    @staticmethod
+    def _escape_ass_text(value: str) -> str:
+        return (
+            str(value or "")
+            .replace("\\", r"\\")
+            .replace("{", r"\{")
+            .replace("}", r"\}")
+            .replace("\r\n", r"\N")
+            .replace("\n", r"\N")
+            .replace("\r", r"\N")
+        )
+
+    @staticmethod
+    def _ass_position(
+        position: str,
+        target_resolution: tuple[int, int],
+        bottom_offset_px: int | None,
+    ) -> tuple[int, int, int]:
+        width, height = target_resolution
+        margin_x = max(int(round(width * 0.05)), 1)
+        margin_y = max(int(round(height * 0.05)), 1)
+        bottom_margin = margin_y if bottom_offset_px is None else max(int(bottom_offset_px), 0)
+        positions = {
+            "center": (5, width // 2, height // 2),
+            "top": (8, width // 2, margin_y),
+            "bottom": (2, width // 2, max(height - bottom_margin, 0)),
+            "left": (4, margin_x, height // 2),
+            "right": (6, max(width - margin_x, 0), height // 2),
+            "top_left": (7, margin_x, margin_y),
+            "top_right": (9, max(width - margin_x, 0), margin_y),
+            "bottom_left": (1, margin_x, max(height - bottom_margin, 0)),
+            "bottom_right": (3, max(width - margin_x, 0), max(height - bottom_margin, 0)),
+        }
+        return positions.get(position, positions["center"])
+
+    def _build_fast_ass_subtitles(
+        self,
+        texts: list[TextInstruction],
+        target_resolution: tuple[int, int],
+        duration: float,
+        temp_dir: Path,
+    ) -> Optional[tuple[Path, Optional[Path]]]:
+        width, height = target_resolution
+        events: list[str] = []
+        fonts_dir = temp_dir / "fonts"
+        copied_fonts: set[Path] = set()
+        for instruction in texts:
+            start = max(float(instruction.start or 0.0), 0.0)
+            end = min(float(instruction.end) if instruction.end else duration, duration)
+            if end <= start:
+                continue
+
+            font = self._resolve_pillow_font(instruction)
+            try:
+                resolved_family = str(font.getname()[0]).strip()
+            except Exception:
+                resolved_family = ""
+            font_source_value = getattr(font, "path", None)
+            if font_source_value:
+                font_source = Path(str(font_source_value))
+                if font_source.exists() and font_source not in copied_fonts:
+                    fonts_dir.mkdir(parents=True, exist_ok=True)
+                    shutil.copy2(font_source, fonts_dir / font_source.name)
+                    copied_fonts.add(font_source)
+            stroke_width = max(int(instruction.stroke_width), 0)
+            max_width = instruction.max_width or int(width * 0.9)
+            max_width = max(1, min(int(max_width), int(width * 0.95)))
+            lines = self._wrap_text_lines(instruction.content, font, max_width, stroke_width)
+            content = self._escape_ass_text("\n".join(lines))
+
+            alignment, x, y = self._ass_position(
+                instruction.position,
+                target_resolution,
+                instruction.bottom_offset_px,
+            )
+            font_name = resolved_family or (instruction.font or "DejaVu Sans").replace("-", " ")
+            font_name = font_name.replace("{", "").replace("}", "").replace("\\", "")
+            primary_color, primary_alpha = self._ass_color_parts(
+                instruction.color,
+                (255, 255, 255, 255),
+            )
+            outline_color, outline_alpha = self._ass_color_parts(
+                instruction.stroke_color,
+                (0, 0, 0, 255),
+            )
+            border = max(stroke_width, 3 if instruction.glow else 0)
+            shadow = max(2, int(round(instruction.font_size * 0.06))) if instruction.shadow else 0
+            clip_duration = max(end - start, 0.001)
+            fade_in_ms = int(round(min(float(instruction.animation.fade_in or 0.0), clip_duration) * 1000.0))
+            fade_out_ms = int(round(min(float(instruction.animation.fade_out or 0.0), clip_duration) * 1000.0))
+            overrides = (
+                f"\\an{alignment}\\pos({x},{y})"
+                f"\\fn{font_name}\\fs{int(instruction.font_size)}"
+                f"\\1c{primary_color}\\1a{primary_alpha}"
+                f"\\3c{outline_color}\\3a{outline_alpha}"
+                f"\\bord{border}\\shad{shadow}"
+                f"\\4c&H000000&\\4a&H40&"
+                f"\\fad({fade_in_ms},{fade_out_ms})"
+            )
+            events.append(
+                "Dialogue: 0,"
+                f"{self._ass_timestamp(start)},{self._ass_timestamp(end)},"
+                f"Default,,0,0,0,,{{{overrides}}}{content}"
+            )
+
+        if not events:
+            return None
+
+        ass_path = temp_dir / "fast_texts.ass"
+        header = [
+            "[Script Info]",
+            "ScriptType: v4.00+",
+            f"PlayResX: {width}",
+            f"PlayResY: {height}",
+            "ScaledBorderAndShadow: yes",
+            "WrapStyle: 2",
+            "",
+            "[V4+ Styles]",
+            "Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, "
+            "Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, "
+            "Shadow, Alignment, MarginL, MarginR, MarginV, Encoding",
+            "Style: Default,DejaVu Sans,48,&H00FFFFFF,&H00FFFFFF,&H00000000,&H40000000,"
+            "0,0,0,0,100,100,0,0,1,0,0,2,0,0,0,1",
+            "",
+            "[Events]",
+            "Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text",
+        ]
+        ass_path.write_text("\n".join([*header, *events, ""]), encoding="utf-8")
+        return ass_path, (fonts_dir if fonts_dir.exists() else None)
+
+    def _build_fast_text_overlays(
+        self,
+        texts: list[TextInstruction],
+        target_resolution: tuple[int, int],
+        duration: float,
+        temp_dir: Path,
+    ) -> list[dict[str, object]]:
+        overlays: list[dict[str, object]] = []
+        for index, text in enumerate(texts):
+            end_time = min(float(text.end) if text.end else duration, duration)
+            start_time = max(float(text.start or 0.0), 0.0)
+            if end_time <= start_time:
+                continue
+            clip = None
+            try:
+                clip = self._build_text_clip_with_pillow(text, target_resolution)
+                if clip is None:
+                    continue
+                frame = np.asarray(clip.get_frame(0))
+                if np.issubdtype(frame.dtype, np.floating):
+                    frame = np.clip(frame * 255.0, 0, 255).astype(np.uint8)
+                else:
+                    frame = frame.astype(np.uint8, copy=False)
+
+                if frame.ndim == 2:
+                    frame = np.repeat(frame[:, :, None], 3, axis=2)
+                rgb = frame[:, :, :3]
+                if frame.ndim == 3 and frame.shape[2] >= 4:
+                    alpha = frame[:, :, 3]
+                elif getattr(clip, "mask", None) is not None:
+                    alpha_frame = np.asarray(clip.mask.get_frame(0))
+                    if np.issubdtype(alpha_frame.dtype, np.floating):
+                        alpha = np.clip(alpha_frame * 255.0, 0, 255).astype(np.uint8)
+                    else:
+                        alpha = alpha_frame.astype(np.uint8, copy=False)
+                    if alpha.ndim == 3:
+                        alpha = alpha[:, :, 0]
+                else:
+                    alpha = np.full(rgb.shape[:2], 255, dtype=np.uint8)
+
+                rgba = np.dstack([rgb, alpha])
+                path = temp_dir / f"text_{index:04d}.png"
+                Image.fromarray(rgba, mode="RGBA").save(path)
+                x, y = self._resolve_fast_overlay_position(
+                    text.position,
+                    target_resolution,
+                    clip.size,
+                    bottom_offset_px=text.bottom_offset_px,
+                )
+                overlays.append(
+                    {
+                        "path": path,
+                        "start": start_time,
+                        "end": end_time,
+                        "duration": max(end_time - start_time, 0.001),
+                        "x": int(x),
+                        "y": int(y),
+                        "fade_in": max(float(getattr(text.animation, "fade_in", 0.0) or 0.0), 0.0),
+                        "fade_out": max(float(getattr(text.animation, "fade_out", 0.0) or 0.0), 0.0),
+                    }
+                )
+            finally:
+                if clip is not None:
+                    clip.close()
+        return overlays
+
+    def _collect_fast_audio_tracks(
+        self,
+        request: RenderRequest,
+        duration: float,
+    ) -> list[dict[str, object]]:
+        tracks: list[dict[str, object]] = []
+        if not request.output.include_audio:
+            return tracks
+
+        for instruction in request.audio:
+            source_path = self._resolve_media_path(instruction.source)
+            if not source_path.exists():
+                logger.warning("Audio source not found: %s", source_path)
+                continue
+            if not self._has_audio_stream(source_path):
+                logger.warning("Audio source has no audio stream: %s", source_path)
+                continue
+
+            source_duration = self._probe_duration_seconds(source_path)
+            source_start = max(float(instruction.start or 0.0), 0.0)
+            source_end = float(instruction.end) if instruction.end else source_duration
+            source_end = min(source_end, source_duration)
+            if source_end <= source_start:
+                continue
+
+            timeline_start = instruction.timeline_start
+            if timeline_start is None:
+                timeline_start = instruction.at
+            if timeline_start is None:
+                timeline_start = source_start
+            timeline_start = max(float(timeline_start or 0.0), 0.0)
+
+            remaining_duration = max(duration - timeline_start, 0.0)
+            if remaining_duration <= 0.0:
+                continue
+            source_end = min(source_end, source_start + remaining_duration)
+            if source_end <= source_start:
+                continue
+
+            tracks.append(
+                {
+                    "path": source_path,
+                    "source_start": source_start,
+                    "source_end": source_end,
+                    "timeline_start": timeline_start,
+                    "volume": max(float(instruction.volume or 0.0), 0.0),
+                    "fade_in": max(float(instruction.fade_in or 0.0), 0.0),
+                    "fade_out": max(float(instruction.fade_out or 0.0), 0.0),
+                }
+            )
+        return tracks
+
+    def _collect_fast_insert_audio_tracks(
+        self,
+        instructions: Iterable[InsertInstruction],
+        timeline_duration: float,
+    ) -> list[dict[str, object]]:
+        tracks: list[dict[str, object]] = []
+        previous_end: Optional[float] = None
+        for instruction in instructions:
+            volume = float(instruction.volume or 0.0)
+            if volume <= 0.0:
+                continue
+            source_path = self._resolve_media_path(instruction.source)
+            if not source_path.exists() or not self._has_audio_stream(source_path):
+                continue
+            source_duration = self._probe_duration_seconds(source_path)
+            source_start = max(float(instruction.start or 0.0), 0.0)
+            source_end = float(instruction.end) if instruction.end else source_duration
+            source_end = min(source_end, source_duration)
+            if source_end <= source_start:
+                continue
+            track_duration = source_end - source_start
+            timeline_start = self._resolve_attachment_start(instruction, timeline_duration, track_duration)
+            if timeline_start < 0.0:
+                source_start += -timeline_start
+                timeline_start = 0.0
+            remaining_duration = max(timeline_duration - timeline_start, 0.0)
+            if remaining_duration <= 0.0:
+                continue
+            source_end = min(source_end, source_start + remaining_duration)
+            if source_end <= source_start:
+                continue
+            rendered_duration = source_end - source_start
+            suppress_intro = timeline_start <= ADJACENT_INSERT_TOLERANCE_SEC
+            if previous_end is not None:
+                suppress_intro = suppress_intro or abs(timeline_start - previous_end) <= ADJACENT_INSERT_TOLERANCE_SEC
+            tracks.append(
+                {
+                    "path": source_path,
+                    "source_start": source_start,
+                    "source_end": source_end,
+                    "timeline_start": timeline_start,
+                    "volume": volume,
+                    "fade_in": max(float(instruction.transitions_before[0].duration), 0.0)
+                    if instruction.transitions_before and not suppress_intro
+                    else 0.0,
+                    "fade_out": max(float(instruction.transitions_after[0].duration), 0.0)
+                    if instruction.transitions_after
+                    else 0.0,
+                }
+            )
+            previous_end = timeline_start + rendered_duration
+        return tracks
+
+    @staticmethod
+    def _fast_transition_fade_duration(transition: Optional[TransitionInstruction], duration: float) -> float:
+        if not transition or transition.type == TransitionType.NONE:
+            return 0.0
+        return max(min(float(transition.duration or 0.0), max(duration, 0.0)), 0.0)
+
+    def _build_fast_overlay_items(
+        self,
+        request: RenderRequest,
+        reference_duration: float,
+    ) -> tuple[list[dict[str, object]], list[TimelineClipModel], float]:
+        items: list[dict[str, object]] = []
+        timeline_entries: list[TimelineClipModel] = []
+        cursor = 0.0
+
+        for index, instruction in enumerate(request.clips):
+            base_duration = self._get_instruction_output_duration(instruction)
+            previous_transition = None
+            if index > 0 and request.clips[index - 1].transitions_after:
+                previous_transition = request.clips[index - 1].transitions_after[0]
+            previous_duration = max(float(items[-1]["duration"]), 0.0) if items else 0.0
+            overlap = self._fast_transition_overlap(previous_transition, previous_duration, base_duration)
+            if self._has_explicit_at(instruction):
+                start = max(float(instruction.at or 0.0) - overlap, 0.0)
+            else:
+                start = max(cursor - overlap, 0.0)
+            output_duration = max(base_duration + overlap, 0.001)
+            intro_fade = self._fast_transition_fade_duration(previous_transition, output_duration)
+            outro = instruction.transitions_after[0] if instruction.transitions_after else None
+            outro_fade = self._fast_transition_fade_duration(outro, output_duration)
+            end = start + output_duration
+            item = {
+                "kind": "clip",
+                "channel_id": 1,
+                "index": index,
+                "instruction": instruction,
+                "start": start,
+                "duration": output_duration,
+                "transition_padding": overlap,
+                "intro_fade": intro_fade,
+                "outro_fade": outro_fade,
+                "intro_transition": previous_transition,
+                "outro_transition": outro,
+                "trim_to_reference": False,
+            }
+            items.append(item)
+            cursor = max(cursor, end)
+            timeline_entries.append(
+                TimelineClipModel(
+                    index=index,
+                    source=instruction.source,
+                    source_label=instruction.source_label,
+                    source_type=instruction.source_type,
+                    source_resolution=instruction.source_resolution,
+                    quality_label=instruction.quality_label,
+                    start=round(max(start, 0.0), 1),
+                    end=round(max(end, 0.0), 1),
+                    auto_placed=self._is_auto_placed_instruction(instruction),
+                    channel_id=1,
+                    kind="clip",
+                )
+            )
+
+        timeline_duration = max(reference_duration, cursor)
+
+        for channel_id, kind, instructions in (
+            (10, "attachment", request.attachments),
+            (11, "insert", request.inserts),
+        ):
+            insert_cursor = 0.0
+            previous_end: Optional[float] = None
+            for index, instruction in enumerate(instructions):
+                base_duration = self._get_instruction_output_duration(instruction)
+                start = self._resolve_attachment_start(instruction, timeline_duration, base_duration)
+                if not self._has_explicit_at(instruction) and instruction.placement == InsertPlacement.TIME:
+                    start = max(insert_cursor, 0.0)
+                source_offset = 0.0
+                if start < 0.0:
+                    source_offset = -start
+                    start = 0.0
+                if start >= timeline_duration:
+                    continue
+                visible_duration = min(base_duration - source_offset, timeline_duration - start)
+                if visible_duration <= 0.0:
+                    continue
+                suppress_intro = start <= ADJACENT_INSERT_TOLERANCE_SEC
+                if previous_end is not None:
+                    suppress_intro = suppress_intro or abs(start - previous_end) <= ADJACENT_INSERT_TOLERANCE_SEC
+                intro = (
+                    instruction.transitions_before[0]
+                    if instruction.transitions_before and not suppress_intro
+                    else None
+                )
+                outro = instruction.transitions_after[0] if instruction.transitions_after else None
+                item = {
+                    "kind": kind,
+                    "channel_id": channel_id,
+                    "index": index,
+                    "instruction": instruction,
+                    "start": start,
+                    "duration": max(visible_duration, 0.001),
+                    "transition_padding": 0.0,
+                    "intro_fade": self._fast_transition_fade_duration(intro, visible_duration),
+                    "outro_fade": self._fast_transition_fade_duration(outro, visible_duration),
+                    "intro_transition": intro,
+                    "outro_transition": outro,
+                    "trim_to_reference": True,
+                    "source_offset": source_offset,
+                }
+                items.append(item)
+                previous_end = start + visible_duration
+                insert_cursor = max(insert_cursor, previous_end)
+                timeline_entries.append(
+                    TimelineClipModel(
+                        index=index,
+                        source=instruction.source,
+                        source_label=instruction.source_label,
+                        source_type=instruction.source_type,
+                        source_resolution=instruction.source_resolution,
+                        quality_label=instruction.quality_label,
+                        start=round(max(start, 0.0), 1),
+                        end=round(max(start + visible_duration, 0.0), 1),
+                        auto_placed=self._is_auto_placed_instruction(instruction),
+                        channel_id=channel_id,
+                        kind=kind,
+                    )
+                )
+
+        items.sort(key=lambda item: (int(item["channel_id"]), float(item["start"]), int(item["index"])))
+        timeline_entries.sort(key=lambda item: (item.channel_id or 1, item.start, item.index))
+        return items, timeline_entries, timeline_duration
+
+    def _normalize_fast_overlay_item(
+        self,
+        item: dict[str, object],
+        temp_dir: Path,
+        target_resolution: tuple[int, int],
+        target_fps: int,
+        bitrate: Optional[str],
+    ) -> Path:
+        instruction = item["instruction"]
+        assert isinstance(instruction, ClipInstruction)
+        model_copy = getattr(instruction, "model_copy", None)
+        normalized_instruction = model_copy(deep=True) if callable(model_copy) else instruction.copy(deep=True)
+        transition_padding = max(float(item.get("transition_padding", 0.0) or 0.0), 0.0)
+        source_offset = max(float(item.get("source_offset", 0.0) or 0.0), 0.0)
+        if source_offset > 0.0:
+            normalized_instruction.start = max(float(normalized_instruction.start or 0.0) + source_offset, 0.0)
+        duration = max(float(item["duration"]), 0.001)
+        if item.get("trim_to_reference"):
+            normalized_instruction.end = normalized_instruction.start + duration
+        output_path = temp_dir / f"fast_overlay_{int(item['channel_id']):02d}_{int(item['index']):04d}.mp4"
+        source_path = self._resolve_media_path(normalized_instruction.source)
+        if not source_path.exists():
+            raise VideoEngineError(f"Clip source not found: {source_path}")
+        self._normalize_clip_for_fast_render(
+            instruction=normalized_instruction,
+            source_path=source_path,
+            output_path=output_path,
+            target_resolution=target_resolution,
+            target_fps=target_fps,
+            bitrate=bitrate,
+            transition_padding=transition_padding,
+            intro_fade_black=0.0,
+            outro_fade_black=0.0,
+        )
+        return output_path
+
+    def _render_fast_overlay_timeline(
+        self,
+        request: RenderRequest,
+        target_resolution: tuple[int, int],
+    ) -> RenderResult:
+        output_path = self._resolve_output_path(request)
+        extension = output_path.suffix.lower().lstrip(".")
+        base_duration = max((self._get_instruction_output_duration(instruction) for instruction in request.clips), default=0.0)
+        items, timeline_entries, timeline_duration = self._build_fast_overlay_items(request, base_duration)
+        if not items:
+            raise VideoEngineError("No renderable timeline items")
+
+        with tempfile.TemporaryDirectory(prefix="ffmpeg_fast_overlay_", dir=str(self.workspace)) as temp_dir_name:
+            temp_dir = Path(temp_dir_name)
+            max_workers = self._get_positive_int_env("FFMPEG_FAST_RENDER_NORMALIZE_CONCURRENCY", 4)
+            max_workers = min(max_workers, max(len(items), 1))
+            with ThreadPoolExecutor(max_workers=max_workers) as executor:
+                future_to_pos = {
+                    executor.submit(
+                        self._normalize_fast_overlay_item,
+                        item,
+                        temp_dir,
+                        target_resolution,
+                        request.output.fps,
+                        request.output.bitrate,
+                    ): position
+                    for position, item in enumerate(items)
+                }
+                for future in as_completed(future_to_pos):
+                    items[future_to_pos[future]]["path"] = future.result()
+
+            filters: list[str] = []
+            target_w, target_h = target_resolution
+            main_positions = [
+                (position, item)
+                for position, item in enumerate(items)
+                if int(item["channel_id"]) == 1
+            ]
+            overlay_positions = [
+                (position, item)
+                for position, item in enumerate(items)
+                if int(item["channel_id"]) != 1
+            ]
+
+            if main_positions:
+                main_labels: list[tuple[str, dict[str, object]]] = []
+                for position, item in main_positions:
+                    instruction = item["instruction"]
+                    assert isinstance(instruction, ClipInstruction)
+                    duration = max(float(item["duration"]), 0.001)
+                    label = f"vmain{position}"
+                    main_filters = [
+                        f"[{position}:v]fps={request.output.fps}",
+                        "format=yuv420p",
+                        "settb=AVTB",
+                    ]
+                    instruction_index = int(item["index"])
+                    previous_transition = None
+                    if instruction_index > 0 and request.clips[instruction_index - 1].transitions_after:
+                        previous_transition = request.clips[instruction_index - 1].transitions_after[0]
+                    main_filters.extend(
+                        self._fast_transition_edge_filters(previous_transition, duration, "intro")
+                    )
+                    outro_transition = (
+                        instruction.transitions_after[0]
+                        if instruction.transitions_after
+                        else None
+                    )
+                    main_filters.extend(
+                        self._fast_transition_edge_filters(outro_transition, duration, "outro")
+                    )
+                    if previous_transition and previous_transition.type == TransitionType.FADE_BLACK:
+                        fade_in = min(float(previous_transition.duration or 0.0), duration)
+                        if fade_in > 0.0:
+                            main_filters.append(f"fade=t=in:st=0:d={fade_in:.6f}")
+                    if outro_transition and outro_transition.type == TransitionType.FADE_BLACK:
+                        fade_out = min(float(outro_transition.duration or 0.0), duration)
+                        if fade_out > 0.0:
+                            main_filters.append(
+                                f"fade=t=out:st={max(duration - fade_out, 0.0):.6f}:d={fade_out:.6f}"
+                            )
+                    filters.append(",".join(main_filters) + f"[{label}]")
+                    main_labels.append((label, item))
+
+                current_label, first_item = main_labels[0]
+                current_duration = max(float(first_item["duration"]), 0.001)
+                first_start = max(float(first_item["start"]), 0.0)
+                if first_start > 1e-6:
+                    filters.append(
+                        f"color=c=black:s={target_w}x{target_h}:r={request.output.fps}:"
+                        f"d={first_start:.6f}[vgap0]"
+                    )
+                    filters.append(f"[vgap0][{current_label}]concat=n=2:v=1:a=0[vbase0]")
+                    current_label = "vbase0"
+                    current_duration += first_start
+
+                for sequence_index, (next_input_label, item) in enumerate(main_labels[1:], start=1):
+                    desired_start = max(float(item["start"]), 0.0)
+                    next_duration = max(float(item["duration"]), 0.001)
+                    next_label = f"vbase{sequence_index}"
+                    overlap = max(current_duration - desired_start, 0.0)
+                    if overlap > 1e-6:
+                        overlap = min(overlap, current_duration, next_duration)
+                        previous_item = main_labels[sequence_index - 1][1]
+                        previous_instruction = previous_item["instruction"]
+                        assert isinstance(previous_instruction, ClipInstruction)
+                        transition = (
+                            previous_instruction.transitions_after[0]
+                            if previous_instruction.transitions_after
+                            else None
+                        )
+                        transition_name = self._fast_xfade_name(transition) if transition else "fade"
+                        offset = max(current_duration - overlap, 0.0)
+                        filters.append(
+                            f"[{current_label}][{next_input_label}]"
+                            f"xfade=transition={transition_name}:duration={overlap:.6f}:"
+                            f"offset={offset:.6f},format=yuv420p[{next_label}]"
+                        )
+                        current_duration = max(current_duration + next_duration - overlap, desired_start + next_duration)
+                    else:
+                        gap = max(desired_start - current_duration, 0.0)
+                        if gap > 1e-6:
+                            gap_label = f"vgap{sequence_index}"
+                            joined_label = f"vjoined{sequence_index}"
+                            filters.append(
+                                f"color=c=black:s={target_w}x{target_h}:r={request.output.fps}:"
+                                f"d={gap:.6f}[{gap_label}]"
+                            )
+                            filters.append(
+                                f"[{current_label}][{gap_label}]concat=n=2:v=1:a=0[{joined_label}]"
+                            )
+                            current_label = joined_label
+                            current_duration += gap
+                        filters.append(
+                            f"[{current_label}][{next_input_label}]concat=n=2:v=1:a=0[{next_label}]"
+                        )
+                        current_duration += next_duration
+                    current_label = next_label
+
+                tail_duration = max(timeline_duration - current_duration, 0.0)
+                if tail_duration > 1e-6:
+                    filters.append(
+                        f"color=c=black:s={target_w}x{target_h}:r={request.output.fps}:"
+                        f"d={tail_duration:.6f}[vmaintail]"
+                    )
+                    filters.append(f"[{current_label}][vmaintail]concat=n=2:v=1:a=0[vbasefinal]")
+                    current_label = "vbasefinal"
+            else:
+                filters.append(
+                    f"color=c=black:s={target_w}x{target_h}:r={request.output.fps}:"
+                    f"d={timeline_duration:.6f}[vbase]"
+                )
+                current_label = "vbase"
+
+            for position, item in overlay_positions:
+                instruction = item["instruction"]
+                assert isinstance(instruction, ClipInstruction)
+                input_label = f"vitem{position}"
+                video_filters = [f"[{position}:v]fps={request.output.fps}", "format=rgba"]
+                if instruction.chroma_key.enabled:
+                    key = instruction.chroma_key
+                    key_color = key.color.as_tuple()
+                    video_filters.append(
+                        "colorkey="
+                        f"0x{key_color[0]:02x}{key_color[1]:02x}{key_color[2]:02x}:"
+                        f"{key.effective_similarity:.6f}:{key.effective_blend:.6f}"
+                    )
+                duration = max(float(item["duration"]), 0.001)
+                intro_transition = item.get("intro_transition")
+                outro_transition = item.get("outro_transition")
+                video_filters.extend(
+                    self._fast_transition_edge_filters(intro_transition, duration, "intro")
+                )
+                video_filters.extend(
+                    self._fast_transition_edge_filters(outro_transition, duration, "outro")
+                )
+                intro_fade = min(max(float(item.get("intro_fade", 0.0) or 0.0), 0.0), duration)
+                outro_fade = min(max(float(item.get("outro_fade", 0.0) or 0.0), 0.0), duration)
+                if intro_fade > 0.0 and self._fast_transition_uses_alpha_fade(intro_transition):
+                    video_filters.append(f"fade=t=in:st=0:d={intro_fade:.6f}:alpha=1")
+                if outro_fade > 0.0 and self._fast_transition_uses_alpha_fade(outro_transition):
+                    fade_start = max(duration - outro_fade, 0.0)
+                    video_filters.append(f"fade=t=out:st={fade_start:.6f}:d={outro_fade:.6f}:alpha=1")
+                start = max(float(item["start"]), 0.0)
+                end = min(start + duration, timeline_duration)
+                video_filters.append(f"setpts=PTS-STARTPTS+{start:.6f}/TB")
+                filters.append(",".join(video_filters) + f"[{input_label}]")
+                next_label = f"vover{position}"
+                overlay_x, overlay_y = self._fast_overlay_position_expressions(item, target_resolution)
+                filters.append(
+                    f"[{current_label}][{input_label}]"
+                    f"overlay=x='{overlay_x}':y='{overlay_y}':"
+                    f"enable='between(t\\,{start:.6f}\\,{end:.6f})':"
+                    f"shortest=0:format=auto[{next_label}]"
+                )
+                current_label = next_label
+
+            ass_assets = self._build_fast_ass_subtitles(
+                request.texts,
+                target_resolution,
+                timeline_duration,
+                temp_dir,
+            )
+            video_input_count = len(items)
+            if ass_assets is not None:
+                ass_path, ass_fonts_dir = ass_assets
+                escaped_ass_path = ass_path.as_posix().replace(":", r"\:").replace("'", r"\'")
+                ass_filter = f"ass=filename='{escaped_ass_path}':original_size={target_w}x{target_h}"
+                if ass_fonts_dir is not None:
+                    escaped_fonts_dir = ass_fonts_dir.as_posix().replace(":", r"\:").replace("'", r"\'")
+                    ass_filter += f":fontsdir='{escaped_fonts_dir}'"
+                filters.append(f"[{current_label}]{ass_filter}[vtext]")
+                current_label = "vtext"
+
+            audio_tracks = self._collect_fast_audio_tracks(request, timeline_duration)
+            audio_tracks.extend(self._collect_fast_insert_audio_tracks(request.attachments, timeline_duration))
+            audio_tracks.extend(self._collect_fast_insert_audio_tracks(request.inserts, timeline_duration))
+            audio_input_start = video_input_count
+            audio_labels: list[str] = []
+            for audio_index, track in enumerate(audio_tracks):
+                input_index = audio_input_start + audio_index
+                label = f"aud{audio_index}"
+                source_start = float(track["source_start"])
+                source_end = float(track["source_end"])
+                track_duration = max(source_end - source_start, 0.001)
+                audio_filters = [
+                    f"atrim=start={source_start:.6f}:end={source_end:.6f}",
+                    "asetpts=PTS-STARTPTS",
+                    f"volume={float(track['volume']):.6f}",
+                ]
+                fade_in = min(float(track["fade_in"]), track_duration)
+                fade_out = min(float(track["fade_out"]), track_duration)
+                if fade_in > 0.0:
+                    audio_filters.append(f"afade=t=in:st=0:d={fade_in:.6f}")
+                if fade_out > 0.0:
+                    fade_start = max(track_duration - fade_out, 0.0)
+                    audio_filters.append(f"afade=t=out:st={fade_start:.6f}:d={fade_out:.6f}")
+                delay_ms = max(int(round(float(track["timeline_start"]) * 1000.0)), 0)
+                if delay_ms > 0:
+                    audio_filters.append(f"adelay={delay_ms}:all=1")
+                filters.append(f"[{input_index}:a]{','.join(audio_filters)}[{label}]")
+                audio_labels.append(label)
+
+            final_audio_label = None
+            if len(audio_labels) == 1:
+                final_audio_label = "aout"
+                filters.append(
+                    f"[{audio_labels[0]}]atrim=0:{timeline_duration:.6f},"
+                    f"asetpts=PTS-STARTPTS[{final_audio_label}]"
+                )
+            elif len(audio_labels) > 1:
+                final_audio_label = "aout"
+                inputs = "".join(f"[{label}]" for label in audio_labels)
+                filters.append(
+                    f"{inputs}amix=inputs={len(audio_labels)}:duration=longest:dropout_transition=0,"
+                    f"atrim=0:{timeline_duration:.6f},asetpts=PTS-STARTPTS[{final_audio_label}]"
+                )
+
+            command = [
+                "ffmpeg",
+                "-y",
+                "-nostdin",
+                "-hide_banner",
+                "-loglevel",
+                "error",
+                *self._build_ffmpeg_runtime_args(),
+            ]
+            for item in items:
+                command += ["-i", str(item["path"])]
+            for track in audio_tracks:
+                command += ["-i", str(track["path"])]
+            command += [
+                "-filter_complex",
+                ";".join(filters),
+                "-map",
+                f"[{current_label}]",
+            ]
+            if final_audio_label:
+                command += ["-map", f"[{final_audio_label}]", *self._build_fast_audio_codec_args()]
+            else:
+                command += ["-an"]
+            command += [
+                "-dn",
+                "-map_metadata",
+                "-1",
+                *self._build_fast_video_codec_args(request.output.bitrate, extension),
+                "-t",
+                f"{timeline_duration:.6f}",
+            ]
+            if extension in {"mp4", "mov"}:
+                command += ["-movflags", "+faststart"]
+            staged_output = temp_dir / f"final_output.{extension}"
+            command.append(str(staged_output))
+            self._run_external_command(command, "FFmpeg fast overlay final render")
+            final_duration = self._probe_duration_seconds(staged_output)
+            if final_duration <= 0.0:
+                raise VideoEngineError("FFmpeg fast overlay final render produced an empty media file")
+            os.replace(staged_output, output_path)
+
+        timeline = TimelineDetailModel(
+            clips=[entry for entry in timeline_entries if entry.channel_id == 1],
+            attachments=[entry for entry in timeline_entries if entry.kind == "attachment"],
+            inserts=[entry for entry in timeline_entries if entry.kind == "insert"],
+            channels=[TimelineChannelModel(channel_id=channel_id, clips=[entry for entry in timeline_entries if entry.channel_id == channel_id]) for channel_id in sorted({entry.channel_id or 1 for entry in timeline_entries})],
+        )
+        return RenderResult(status="ok", duration=final_duration, output=output_path, timeline=timeline)
+
+    def _render_fast_linear(
+        self,
+        request: RenderRequest,
+        target_resolution: tuple[int, int],
+    ) -> RenderResult:
+        output_path = self._resolve_output_path(request)
+        extension = output_path.suffix.lower().lstrip(".")
+        timeline_entries: list[TimelineClipModel] = []
+
+        with tempfile.TemporaryDirectory(prefix="ffmpeg_fast_render_", dir=str(self.workspace)) as temp_dir_name:
+            temp_dir = Path(temp_dir_name)
+            normalized_files: list[Path] = []
+            normalized_durations: list[float] = []
+            base_durations: list[float] = []
+
+            for instruction in request.clips:
+                base_durations.append(self._get_instruction_output_duration(instruction))
+
+            for index, instruction in enumerate(request.clips):
+                source_path = self._resolve_media_path(instruction.source)
+                if not source_path.exists():
+                    raise VideoEngineError(f"Clip source not found: {source_path}")
+
+                previous_transition = None
+                previous_duration = 0.0
+                if index > 0 and request.clips[index - 1].transitions_after:
+                    previous_transition = request.clips[index - 1].transitions_after[0]
+                    previous_duration = normalized_durations[index - 1]
+
+                transition_padding = self._fast_transition_overlap(
+                    previous_transition,
+                    previous_duration,
+                    base_durations[index],
+                )
+                intro_fade_black = 0.0
+                if previous_transition and previous_transition.type == TransitionType.FADE_BLACK:
+                    intro_fade_black = min(float(previous_transition.duration or 0.0), base_durations[index])
+
+                outro_fade_black = 0.0
+                if instruction.transitions_after:
+                    current_transition = instruction.transitions_after[0]
+                    if current_transition.type == TransitionType.FADE_BLACK:
+                        outro_fade_black = min(float(current_transition.duration or 0.0), base_durations[index])
+
+                normalized_path = temp_dir / f"fast_norm_{index:04d}.mp4"
+                normalized_duration = self._normalize_clip_for_fast_render(
+                    instruction=instruction,
+                    source_path=source_path,
+                    output_path=normalized_path,
+                    target_resolution=target_resolution,
+                    target_fps=request.output.fps,
+                    bitrate=request.output.bitrate,
+                    transition_padding=transition_padding,
+                    intro_fade_black=intro_fade_black,
+                    outro_fade_black=outro_fade_black,
+                )
+                normalized_files.append(normalized_path)
+                normalized_durations.append(normalized_duration)
+
+            filters: list[str] = []
+            for index in range(len(normalized_files)):
+                filters.append(f"[{index}:v]fps={request.output.fps},settb=AVTB[v{index}]")
+
+            current_label = "v0"
+            current_duration = normalized_durations[0]
+            timeline_entries.append(
+                TimelineClipModel(
+                    index=0,
+                    source=request.clips[0].source,
+                    source_label=request.clips[0].source_label,
+                    source_type=request.clips[0].source_type,
+                    source_resolution=request.clips[0].source_resolution,
+                    quality_label=request.clips[0].quality_label,
+                    start=0.0,
+                    end=round(max(current_duration, 0.0), 1),
+                    auto_placed=self._is_auto_placed_instruction(request.clips[0]),
+                    channel_id=1,
+                    kind="clip",
+                )
+            )
+
+            for index in range(1, len(normalized_files)):
+                transition = None
+                if request.clips[index - 1].transitions_after:
+                    transition = request.clips[index - 1].transitions_after[0]
+
+                overlap = self._fast_transition_overlap(
+                    transition,
+                    current_duration,
+                    normalized_durations[index],
+                )
+                next_label = f"vfast{index}"
+                if overlap > 0.0:
+                    offset = max(current_duration - overlap, 0.0)
+                    xfade_name = self._fast_xfade_name(transition)
+                    filters.append(
+                        f"[{current_label}][v{index}]"
+                        f"xfade=transition={xfade_name}:duration={overlap:.6f}:offset={offset:.6f},"
+                        f"format=yuv420p[{next_label}]"
+                    )
+                    clip_start = offset
+                    current_duration = max(current_duration + normalized_durations[index] - overlap, 0.0)
+                else:
+                    filters.append(f"[{current_label}][v{index}]concat=n=2:v=1:a=0[{next_label}]")
+                    clip_start = current_duration
+                    current_duration = max(current_duration + normalized_durations[index], 0.0)
+
+                current_label = next_label
+                timeline_entries.append(
+                    TimelineClipModel(
+                        index=index,
+                        source=request.clips[index].source,
+                        source_label=request.clips[index].source_label,
+                        source_type=request.clips[index].source_type,
+                        source_resolution=request.clips[index].source_resolution,
+                        quality_label=request.clips[index].quality_label,
+                        start=round(max(clip_start, 0.0), 1),
+                        end=round(max(clip_start + normalized_durations[index], 0.0), 1),
+                        auto_placed=self._is_auto_placed_instruction(request.clips[index]),
+                        channel_id=1,
+                        kind="clip",
+                    )
+                )
+
+            text_overlays = self._build_fast_text_overlays(
+                request.texts,
+                target_resolution,
+                current_duration,
+                temp_dir,
+            )
+            final_video_label = current_label
+            video_input_count = len(normalized_files)
+
+            for text_index, overlay in enumerate(text_overlays):
+                input_index = video_input_count + text_index
+                text_label = f"text{text_index}"
+                fade_filters = ["format=rgba"]
+                text_duration = float(overlay["duration"])
+                fade_in = min(float(overlay["fade_in"]), text_duration)
+                fade_out = min(float(overlay["fade_out"]), text_duration)
+                if fade_in > 0.0:
+                    fade_filters.append(f"fade=t=in:st=0:d={fade_in:.6f}:alpha=1")
+                if fade_out > 0.0:
+                    fade_start = max(text_duration - fade_out, 0.0)
+                    fade_filters.append(f"fade=t=out:st={fade_start:.6f}:d={fade_out:.6f}:alpha=1")
+                fade_filters.append(f"setpts=PTS-STARTPTS+{float(overlay['start']):.6f}/TB")
+                filters.append(f"[{input_index}:v]{','.join(fade_filters)}[{text_label}]")
+
+                next_label = f"vtext{text_index}"
+                filters.append(
+                    f"[{final_video_label}][{text_label}]"
+                    f"overlay=x={int(overlay['x'])}:y={int(overlay['y'])}:"
+                    f"enable='between(t\\,{float(overlay['start']):.6f}\\,{float(overlay['end']):.6f})':"
+                    f"format=auto[{next_label}]"
+                )
+                final_video_label = next_label
+
+            audio_tracks = self._collect_fast_audio_tracks(request, current_duration)
+            audio_input_start = video_input_count + len(text_overlays)
+            audio_labels: list[str] = []
+            for audio_index, track in enumerate(audio_tracks):
+                input_index = audio_input_start + audio_index
+                label = f"aud{audio_index}"
+                source_start = float(track["source_start"])
+                source_end = float(track["source_end"])
+                track_duration = max(source_end - source_start, 0.001)
+                audio_filters = [
+                    f"atrim=start={source_start:.6f}:end={source_end:.6f}",
+                    "asetpts=PTS-STARTPTS",
+                    f"volume={float(track['volume']):.6f}",
+                ]
+                fade_in = min(float(track["fade_in"]), track_duration)
+                fade_out = min(float(track["fade_out"]), track_duration)
+                if fade_in > 0.0:
+                    audio_filters.append(f"afade=t=in:st=0:d={fade_in:.6f}")
+                if fade_out > 0.0:
+                    fade_start = max(track_duration - fade_out, 0.0)
+                    audio_filters.append(f"afade=t=out:st={fade_start:.6f}:d={fade_out:.6f}")
+                delay_ms = max(int(round(float(track["timeline_start"]) * 1000.0)), 0)
+                if delay_ms > 0:
+                    audio_filters.append(f"adelay={delay_ms}:all=1")
+                filters.append(f"[{input_index}:a]{','.join(audio_filters)}[{label}]")
+                audio_labels.append(label)
+
+            final_audio_label = None
+            if len(audio_labels) == 1:
+                final_audio_label = "aout"
+                filters.append(
+                    f"[{audio_labels[0]}]atrim=0:{current_duration:.6f},"
+                    f"asetpts=PTS-STARTPTS[{final_audio_label}]"
+                )
+            elif len(audio_labels) > 1:
+                final_audio_label = "aout"
+                inputs = "".join(f"[{label}]" for label in audio_labels)
+                filters.append(
+                    f"{inputs}amix=inputs={len(audio_labels)}:duration=longest:dropout_transition=0,"
+                    f"atrim=0:{current_duration:.6f},asetpts=PTS-STARTPTS[{final_audio_label}]"
+                )
+
+            command = [
+                "ffmpeg",
+                "-y",
+                "-nostdin",
+                "-hide_banner",
+                "-loglevel",
+                "error",
+                *self._build_ffmpeg_runtime_args(),
+            ]
+            for normalized_file in normalized_files:
+                command += ["-i", str(normalized_file)]
+            for overlay in text_overlays:
+                command += ["-loop", "1", "-t", f"{float(overlay['duration']):.6f}", "-i", str(overlay["path"])]
+            for track in audio_tracks:
+                command += ["-i", str(track["path"])]
+
+            command += [
+                "-filter_complex",
+                ";".join(filters),
+                "-map",
+                f"[{final_video_label}]",
+            ]
+            if final_audio_label:
+                command += ["-map", f"[{final_audio_label}]", *self._build_fast_audio_codec_args()]
+            else:
+                command += ["-an"]
+            command += [
+                "-dn",
+                "-map_metadata",
+                "-1",
+                *self._build_fast_video_codec_args(request.output.bitrate, extension),
+                "-t",
+                f"{current_duration:.6f}",
+            ]
+            if extension in {"mp4", "mov"}:
+                command += ["-movflags", "+faststart"]
+            command.append(str(output_path))
+
+            self._run_external_command(command, "FFmpeg fast final render")
+
+        final_duration = self._probe_duration_seconds(output_path)
+        timeline = TimelineDetailModel(clips=timeline_entries, channels=[
+            TimelineChannelModel(channel_id=1, clips=timeline_entries)
+        ])
+        return RenderResult(status="ok", duration=final_duration, output=output_path, timeline=timeline)
 
     def _normalize_clip_for_concat(
         self,
