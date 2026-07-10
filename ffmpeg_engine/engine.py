@@ -2686,7 +2686,9 @@ class VideoEngine:
             raise VideoEngineError(f"{stage} timed out after {timeout_label}") from exc
         if process.returncode == 0:
             return
-        stderr_tail = (process.stderr or process.stdout or "").strip().splitlines()[-10:]
+        # Keep enough FFmpeg context to identify the failing filter; ten final
+        # lines often omit the actual reinitialization error.
+        stderr_tail = (process.stderr or process.stdout or "").strip().splitlines()[-60:]
         details = " | ".join(stderr_tail)
         if details:
             raise VideoEngineError(f"{stage} failed: {details}")
@@ -3085,9 +3087,12 @@ class VideoEngine:
             parts.append(rest_label)
 
         if len(parts) == 1:
-            filters.append(f"[{parts[0]}]null[{output_label}]")
+            filters.append(f"[{parts[0]}]fps={fps},settb=AVTB[{output_label}]")
         else:
-            filters.append(f"{''.join(f'[{part}]' for part in parts)}concat=n={len(parts)}:v=1:a=0[{output_label}]")
+            filters.append(
+                f"{''.join(f'[{part}]' for part in parts)}concat=n={len(parts)}:v=1:a=0,"
+                f"fps={fps},settb=AVTB[{output_label}]"
+            )
         return filters
 
     def _fast_clip_trim_window(
