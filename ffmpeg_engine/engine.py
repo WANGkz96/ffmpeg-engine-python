@@ -2937,10 +2937,17 @@ class VideoEngine:
         for window_index in range(window_count):
             window_start = start_offset + duration * window_index / window_count
             progress = (window_index + 0.5) / window_count
-            if phase == "intro":
+            if transition.type == TransitionType.MOTION_BLUR and phase == "intro":
+                # Whole between-clips curve: 0, 0, 50, 50, 0.
+                # The incoming half holds 50% until its midpoint, then clears.
+                factor = min(0.5, max(1.0 - progress, 0.0))
+            elif transition.type == TransitionType.MOTION_BLUR and phase == "outro":
+                # The outgoing half stays sharp until its midpoint, then reaches 50%.
+                factor = max(progress - 0.5, 0.0)
+            elif phase == "intro":
                 factor = (1.0 - progress) ** 2
             elif phase == "outro":
-                factor = progress ** 2
+                factor = progress**2
             else:
                 factor = 4.0 * progress**2 if progress < 0.5 else 4.0 * (1.0 - progress) ** 2
             kernel = int(round(max_strength * factor))
@@ -2950,7 +2957,7 @@ class VideoEngine:
                 kernel += 1
             if window_index == 0:
                 initial_kernel = kernel
-            commands.append(f"{window_start:.6f} {filter_name} {size_option} {kernel}")
+            commands.append(f"{window_start:.6f} avgblur@{filter_name} {size_option} {kernel}")
 
         transition_end = start_offset + duration
         enable = f"gte(t\\,{start_offset:.6f})*lt(t\\,{transition_end:.6f})"
@@ -2964,13 +2971,13 @@ class VideoEngine:
         if transition.type == TransitionType.MOTION_BLUR and transition.glow:
             progress_expr = f"(t-{start_offset:.6f})/{duration:.6f}"
             if phase == "intro":
-                factor_expr = f"pow(1-({progress_expr})\\,2)"
+                factor_expr = f"1-({progress_expr})"
             elif phase == "outro":
-                factor_expr = f"pow({progress_expr}\\,2)"
+                factor_expr = progress_expr
             else:
                 factor_expr = (
-                    f"if(lt({progress_expr}\\,0.5)\\,4*pow({progress_expr}\\,2)\\,"
-                    f"4*pow(1-({progress_expr})\\,2))"
+                    f"if(lt({progress_expr}\\,0.5)\\,2*({progress_expr})\\,"
+                    f"2*(1-({progress_expr})))"
                 )
             result.append(
                 f"eq=brightness='0.5*({factor_expr})':eval=frame:enable='{enable}'"
