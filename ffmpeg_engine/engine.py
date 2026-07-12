@@ -2938,12 +2938,11 @@ class VideoEngine:
             window_start = start_offset + duration * window_index / window_count
             progress = (window_index + 0.5) / window_count
             if transition.type == TransitionType.MOTION_BLUR and phase == "intro":
-                # Whole between-clips curve: 0, 0, 50, 50, 0.
-                # The incoming half holds 50% until its midpoint, then clears.
-                factor = min(0.5, max(1.0 - progress, 0.0))
+                # Incoming half clears smoothly from 50% to 0%.
+                factor = 0.5 * (1.0 - progress)
             elif transition.type == TransitionType.MOTION_BLUR and phase == "outro":
-                # The outgoing half stays sharp until its midpoint, then reaches 50%.
-                factor = max(progress - 0.5, 0.0)
+                # Outgoing half rises smoothly from 0% to 50%.
+                factor = 0.5 * progress
             elif phase == "intro":
                 factor = (1.0 - progress) ** 2
             elif phase == "outro":
