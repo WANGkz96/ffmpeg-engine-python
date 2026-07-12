@@ -2926,13 +2926,16 @@ class VideoEngine:
         direction = transition.direction.value if hasattr(transition.direction, "value") else str(transition.direction)
         vertical = transition.type == TransitionType.WHIP_PAN and direction in {"top", "bottom"}
         # Use one blur-strength window per output frame. This preserves the
-        # legacy quadratic curve without visible eight-step jumps.
+        # legacy quadratic curve without allocating one avgblur filter per
+        # frame. Runtime commands update a single filter instance instead.
         window_count = max(int(duration * max(int(fps), 1) + 0.999999), 1)
         start_offset = 0.0 if phase in {"intro", "between"} else max(float(clip_duration) - duration, 0.0)
-        result: list[str] = []
+        filter_name = f"motionblur_{id(transition)}_{phase}"
+        size_option = "sizeY" if vertical else "sizeX"
+        commands: list[str] = []
+        initial_kernel = 1
         for window_index in range(window_count):
             window_start = start_offset + duration * window_index / window_count
-            window_end = start_offset + duration * (window_index + 1) / window_count
             progress = (window_index + 0.5) / window_count
             if phase == "intro":
                 factor = (1.0 - progress) ** 2
@@ -2942,17 +2945,36 @@ class VideoEngine:
                 factor = 4.0 * progress**2 if progress < 0.5 else 4.0 * (1.0 - progress) ** 2
             kernel = int(round(max_strength * factor))
             if kernel < 2:
-                continue
-            if kernel % 2 == 0:
+                kernel = 1
+            elif kernel % 2 == 0:
                 kernel += 1
-            size_x, size_y = (1, kernel) if vertical else (kernel, 1)
-            enable = f"gte(t\\,{window_start:.6f})*lt(t\\,{window_end:.6f})"
-            result.append(f"avgblur=sizeX={size_x}:sizeY={size_y}:enable='{enable}'")
-            # Glow belongs to motion_blur only in the legacy path. It followed
-            # the same quadratic curve as the blur strength.
-            if transition.type == TransitionType.MOTION_BLUR and transition.glow:
-                brightness = min(0.5 * factor, 0.5)
-                result.append(f"eq=brightness={brightness:.6f}:enable='{enable}'")
+            if window_index == 0:
+                initial_kernel = kernel
+            commands.append(f"{window_start:.6f} {filter_name} {size_option} {kernel}")
+
+        transition_end = start_offset + duration
+        enable = f"gte(t\\,{start_offset:.6f})*lt(t\\,{transition_end:.6f})"
+        size_x, size_y = (1, initial_kernel) if vertical else (initial_kernel, 1)
+        result = [
+            f"sendcmd=c='{';'.join(commands)}'",
+            f"avgblur@{filter_name}=sizeX={size_x}:sizeY={size_y}:enable='{enable}'",
+        ]
+        # Glow belongs to motion_blur only in the legacy path and follows the
+        # same continuous quadratic curve without per-frame filter instances.
+        if transition.type == TransitionType.MOTION_BLUR and transition.glow:
+            progress_expr = f"(t-{start_offset:.6f})/{duration:.6f}"
+            if phase == "intro":
+                factor_expr = f"pow(1-({progress_expr})\\,2)"
+            elif phase == "outro":
+                factor_expr = f"pow({progress_expr}\\,2)"
+            else:
+                factor_expr = (
+                    f"if(lt({progress_expr}\\,0.5)\\,4*pow({progress_expr}\\,2)\\,"
+                    f"4*pow(1-({progress_expr})\\,2))"
+                )
+            result.append(
+                f"eq=brightness='0.5*({factor_expr})':eval=frame:enable='{enable}'"
+            )
         return result
 
     @staticmethod
@@ -3116,6 +3138,55 @@ class VideoEngine:
                 f"{''.join(f'[{part}]' for part in parts)}concat=n={len(parts)}:v=1:a=0,"
                 f"fps={fps},settb=AVTB[{output_label}]"
             )
+        return filters
+
+    def _build_fast_whip_pan_segment_filters(
+        self,
+        previous_tail_label: str,
+        next_head_label: str,
+        output_label: str,
+        sequence_index: int,
+        transition: TransitionInstruction,
+        duration: float,
+        target_resolution: tuple[int, int],
+        fps: int,
+    ) -> list[str]:
+        """Compose one bounded whip-pan segment from an outgoing tail and incoming head."""
+        width, height = target_resolution
+        duration = max(float(duration), 0.001)
+        direction = transition.direction.value if hasattr(transition.direction, "value") else str(transition.direction)
+        dx, dy = {
+            "left": (-width, 0),
+            "right": (width, 0),
+            "top": (0, -height),
+            "bottom": (0, height),
+        }.get(direction, (-width, 0))
+        progress = f"(t/{duration:.6f})"
+        eased = (
+            f"if(lt({progress}\\,0.5)\\,4*pow({progress}\\,3)\\,"
+            f"1-pow(-2*{progress}+2\\,3)/2)"
+        )
+        previous_x = f"({dx})*({eased})"
+        previous_y = f"({dy})*({eased})"
+        next_x = f"(-({dx}))+({dx})*({eased})"
+        next_y = f"(-({dy}))+({dy})*({eased})"
+        black_label = f"vwhipsegblack{sequence_index}"
+        moved_previous_label = f"vwhipsegprev{sequence_index}"
+        scene_label = f"vwhipsegscene{sequence_index}"
+        filters = [
+            f"color=c=black:s={width}x{height}:r={fps}:d={duration:.6f}[{black_label}]",
+            (
+                f"[{black_label}][{previous_tail_label}]overlay=x='{previous_x}':y='{previous_y}':"
+                f"eval=frame:shortest=1[{moved_previous_label}]"
+            ),
+            (
+                f"[{moved_previous_label}][{next_head_label}]overlay=x='{next_x}':y='{next_y}':"
+                f"eval=frame:shortest=1[{scene_label}]"
+            ),
+        ]
+        blur_filters = self._fast_transition_edge_filters(transition, duration, "between", fps)
+        transition_filters = [*blur_filters, "format=yuv420p", f"fps={fps}", "settb=AVTB"]
+        filters.append(f"[{scene_label}]{','.join(transition_filters)}[{output_label}]")
         return filters
 
     def _fast_clip_trim_window(
@@ -3873,24 +3944,17 @@ class VideoEngine:
                     filters.append(",".join(main_filters) + f"[{label}]")
                     main_labels.append((label, item))
 
-                current_label, first_item = main_labels[0]
-                current_duration = max(float(first_item["duration"]), 0.001)
-                first_start = max(float(first_item["start"]), 0.0)
-                if first_start > 1e-6:
-                    filters.append(
-                        f"color=c=black:s={target_w}x{target_h}:r={request.output.fps}:"
-                        f"d={first_start:.6f}[vgap0]"
-                    )
-                    filters.append(f"[vgap0][{current_label}]concat=n=2:v=1:a=0[vbase0]")
-                    current_label = "vbase0"
-                    current_duration += first_start
-
-                for sequence_index, (next_input_label, item) in enumerate(main_labels[1:], start=1):
-                    desired_start = max(float(item["start"]), 0.0)
-                    next_duration = max(float(item["duration"]), 0.001)
-                    next_label = f"vbase{sequence_index}"
-                    overlap = max(current_duration - desired_start, 0.0)
-                    previous_item = main_labels[sequence_index - 1][1]
+                boundary_overlaps: list[float] = []
+                boundary_transitions: list[Optional[TransitionInstruction]] = []
+                boundary_gaps: list[float] = []
+                for sequence_index in range(len(main_labels) - 1):
+                    _, previous_item = main_labels[sequence_index]
+                    _, next_item = main_labels[sequence_index + 1]
+                    previous_duration = max(float(previous_item["duration"]), 0.001)
+                    previous_end = max(float(previous_item["start"]), 0.0) + previous_duration
+                    next_start = max(float(next_item["start"]), 0.0)
+                    next_duration = max(float(next_item["duration"]), 0.001)
+                    overlap = min(max(previous_end - next_start, 0.0), previous_duration, next_duration)
                     previous_instruction = previous_item["instruction"]
                     assert isinstance(previous_instruction, ClipInstruction)
                     transition = (
@@ -3898,60 +3962,121 @@ class VideoEngine:
                         if previous_instruction.transitions_after
                         else None
                     )
-                    if overlap > 1e-6 and transition and transition.type == TransitionType.WHIP_PAN:
-                        filters.extend(
-                            self._build_fast_whip_pan_between_filters(
-                                previous_label=current_label,
-                                next_label=next_input_label,
-                                output_label=next_label,
-                                sequence_index=sequence_index,
-                                transition=transition,
-                                previous_duration=current_duration,
-                                next_duration=next_duration,
-                                overlap=overlap,
-                                target_resolution=target_resolution,
-                                fps=request.output.fps,
-                            )
-                        )
-                        current_duration = max(current_duration + next_duration - overlap, desired_start + next_duration)
-                    elif overlap > 1e-6:
-                        overlap = min(overlap, current_duration, next_duration)
-                        transition_name = self._fast_xfade_name(transition) if transition else "fade"
-                        offset = max(current_duration - overlap, 0.0)
-                        filters.append(
-                            f"[{current_label}][{next_input_label}]"
-                            f"xfade=transition={transition_name}:duration={overlap:.6f}:"
-                            f"offset={offset:.6f},format=yuv420p[{next_label}]"
-                        )
-                        current_duration = max(current_duration + next_duration - overlap, desired_start + next_duration)
-                    else:
-                        gap = max(desired_start - current_duration, 0.0)
-                        if gap > 1e-6:
-                            gap_label = f"vgap{sequence_index}"
-                            joined_label = f"vjoined{sequence_index}"
-                            filters.append(
-                                f"color=c=black:s={target_w}x{target_h}:r={request.output.fps}:"
-                                f"d={gap:.6f}[{gap_label}]"
-                            )
-                            filters.append(
-                                f"[{current_label}][{gap_label}]concat=n=2:v=1:a=0[{joined_label}]"
-                            )
-                            current_label = joined_label
-                            current_duration += gap
-                        filters.append(
-                            f"[{current_label}][{next_input_label}]concat=n=2:v=1:a=0[{next_label}]"
-                        )
-                        current_duration += next_duration
-                    current_label = next_label
+                    boundary_overlaps.append(overlap)
+                    boundary_transitions.append(transition)
+                    boundary_gaps.append(max(next_start - previous_end, 0.0))
 
-                tail_duration = max(timeline_duration - current_duration, 0.0)
+                clip_parts: list[dict[str, Optional[str]]] = []
+                for sequence_index, (source_label, item) in enumerate(main_labels):
+                    duration = max(float(item["duration"]), 0.001)
+                    incoming = boundary_overlaps[sequence_index - 1] if sequence_index > 0 else 0.0
+                    outgoing = boundary_overlaps[sequence_index] if sequence_index < len(boundary_overlaps) else 0.0
+                    body_start = min(incoming, duration)
+                    body_end = max(min(duration - outgoing, duration), body_start)
+                    requested_parts: list[tuple[str, float, float]] = []
+                    if incoming > 1e-6:
+                        requested_parts.append(("head", 0.0, incoming))
+                    if body_end - body_start > 1e-6:
+                        requested_parts.append(("body", body_start, body_end))
+                    if outgoing > 1e-6:
+                        requested_parts.append(("tail", max(duration - outgoing, 0.0), duration))
+                    if not requested_parts:
+                        requested_parts.append(("body", 0.0, duration))
+
+                    branch_labels: list[str] = []
+                    if len(requested_parts) == 1:
+                        branch_labels.append(source_label)
+                    else:
+                        branch_labels = [f"vclipsrc{sequence_index}_{part_index}" for part_index in range(len(requested_parts))]
+                        filters.append(
+                            f"[{source_label}]split={len(branch_labels)}"
+                            + "".join(f"[{label}]" for label in branch_labels)
+                        )
+
+                    part_map: dict[str, Optional[str]] = {"head": None, "body": None, "tail": None}
+                    for part_index, ((kind, part_start, part_end), branch_label) in enumerate(
+                        zip(requested_parts, branch_labels)
+                    ):
+                        output_part_label = f"vclip{sequence_index}_{kind}"
+                        filters.append(
+                            f"[{branch_label}]trim=start={part_start:.6f}:end={part_end:.6f},"
+                            f"setpts=PTS-STARTPTS,fps={request.output.fps},settb=AVTB[{output_part_label}]"
+                        )
+                        part_map[kind] = output_part_label
+                    clip_parts.append(part_map)
+
+                sequence_parts: list[str] = []
+                first_start = max(float(main_labels[0][1]["start"]), 0.0)
+                if first_start > 1e-6:
+                    filters.append(
+                        f"color=c=black:s={target_w}x{target_h}:r={request.output.fps}:"
+                        f"d={first_start:.6f}[vmaingap0]"
+                    )
+                    sequence_parts.append("vmaingap0")
+                if clip_parts[0]["body"]:
+                    sequence_parts.append(str(clip_parts[0]["body"]))
+
+                for boundary_index, overlap in enumerate(boundary_overlaps):
+                    transition = boundary_transitions[boundary_index]
+                    if overlap > 1e-6:
+                        previous_tail_label = clip_parts[boundary_index]["tail"]
+                        next_head_label = clip_parts[boundary_index + 1]["head"]
+                        if not previous_tail_label or not next_head_label:
+                            raise VideoEngineError("Unable to build bounded transition segments")
+                        transition_label = f"vtransition{boundary_index}"
+                        if transition and transition.type == TransitionType.WHIP_PAN:
+                            filters.extend(
+                                self._build_fast_whip_pan_segment_filters(
+                                    previous_tail_label=previous_tail_label,
+                                    next_head_label=next_head_label,
+                                    output_label=transition_label,
+                                    sequence_index=boundary_index,
+                                    transition=transition,
+                                    duration=overlap,
+                                    target_resolution=target_resolution,
+                                    fps=request.output.fps,
+                                )
+                            )
+                        else:
+                            transition_name = self._fast_xfade_name(transition) if transition else "fade"
+                            filters.append(
+                                f"[{previous_tail_label}][{next_head_label}]"
+                                f"xfade=transition={transition_name}:duration={overlap:.6f}:offset=0,"
+                                f"format=yuv420p,fps={request.output.fps},settb=AVTB[{transition_label}]"
+                            )
+                        sequence_parts.append(transition_label)
+                    elif boundary_gaps[boundary_index] > 1e-6:
+                        gap_label = f"vmaingap{boundary_index + 1}"
+                        filters.append(
+                            f"color=c=black:s={target_w}x{target_h}:r={request.output.fps}:"
+                            f"d={boundary_gaps[boundary_index]:.6f}[{gap_label}]"
+                        )
+                        sequence_parts.append(gap_label)
+                    next_body_label = clip_parts[boundary_index + 1]["body"]
+                    if next_body_label:
+                        sequence_parts.append(str(next_body_label))
+
+                main_end = max(
+                    max(float(item["start"]), 0.0) + max(float(item["duration"]), 0.001)
+                    for _, item in main_labels
+                )
+                tail_duration = max(timeline_duration - main_end, 0.0)
                 if tail_duration > 1e-6:
                     filters.append(
                         f"color=c=black:s={target_w}x{target_h}:r={request.output.fps}:"
                         f"d={tail_duration:.6f}[vmaintail]"
                     )
-                    filters.append(f"[{current_label}][vmaintail]concat=n=2:v=1:a=0[vbasefinal]")
+                    sequence_parts.append("vmaintail")
+
+                if len(sequence_parts) == 1:
+                    current_label = sequence_parts[0]
+                else:
                     current_label = "vbasefinal"
+                    filters.append(
+                        "".join(f"[{label}]" for label in sequence_parts)
+                        + f"concat=n={len(sequence_parts)}:v=1:a=0,"
+                        f"fps={request.output.fps},settb=AVTB[{current_label}]"
+                    )
             else:
                 filters.append(
                     f"color=c=black:s={target_w}x{target_h}:r={request.output.fps}:"
