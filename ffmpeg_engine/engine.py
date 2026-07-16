@@ -3928,6 +3928,11 @@ class VideoEngine:
                 [
                     f"trim=start={max(previous_duration - overlap, 0.0):.6f}:end={previous_duration:.6f}",
                     "setpts=PTS-STARTPTS",
+                    # A sub-frame trim can drop the negotiated frame-rate
+                    # metadata. Reassert CFR before xfade without changing the
+                    # transition frames or timing.
+                    f"fps={fps}",
+                    "settb=AVTB",
                 ]
             )
             next_filters = [f"[1:v]fps={fps}", "format=yuv420p", "settb=AVTB"]
@@ -3938,6 +3943,8 @@ class VideoEngine:
                 [
                     f"trim=start=0:end={overlap:.6f}",
                     "setpts=PTS-STARTPTS",
+                    f"fps={fps}",
+                    "settb=AVTB",
                 ]
             )
             filters.extend(

@@ -663,6 +663,11 @@ async def render_endpoint(
 
     assert result is not None
     if result.status != "ok":
+        logger.error(
+            "Render failed target=%s: %s",
+            output_key,
+            result.message or "Rendering failed",
+        )
         raise HTTPException(status_code=400, detail=result.message or "Rendering failed")
 
     need_detail = detail_answer or payload.detail_answer
