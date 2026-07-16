@@ -3210,14 +3210,11 @@ class VideoEngine:
         playback_rate = max(float(instruction.playback_rate or 1.0), 1e-6)
         base_duration = max(end - start, 0.0) / playback_rate
         transition_padding = max(float(transition_padding or 0.0), 0.0)
-        raw_padding_needed = transition_padding * playback_rate
-        extend_before = min(raw_padding_needed, start)
-        raw_padding_remaining = max(raw_padding_needed - extend_before, 0.0)
-        extend_after = min(raw_padding_remaining, max(source_duration - end, 0.0))
-        trim_start = max(start - extend_before, 0.0)
-        trim_end = min(end + extend_after, source_duration)
-        target_duration = max(base_duration + transition_padding, trim_end - trim_start)
-        return trim_start, trim_end, target_duration
+        # A transition needs extra timeline time, not source preroll.  Keep the
+        # planner's exact source selection and stretch those selected frames to
+        # cover the overlap in addition to the requested playback rate.
+        target_duration = max(base_duration + transition_padding, 0.001)
+        return start, end, target_duration
 
     def _build_fast_clip_filter_graph(
         self,
@@ -3751,6 +3748,28 @@ class VideoEngine:
 
         timeline_duration = max(reference_duration, cursor)
 
+        # Audio and explicitly positioned overlays are part of the composition,
+        # even when the primary video channel ends first.  Establish the complete
+        # timeline before clipping attachments to it.
+        for instruction in request.audio:
+            source_start = max(float(instruction.start or 0.0), 0.0)
+            source_end = float(instruction.end) if instruction.end is not None else source_start
+            audio_duration = max(source_end - source_start, 0.0)
+            timeline_start = instruction.timeline_start
+            if timeline_start is None:
+                timeline_start = instruction.at
+            if timeline_start is None:
+                timeline_start = source_start
+            timeline_duration = max(timeline_duration, max(float(timeline_start), 0.0) + audio_duration)
+
+        for instruction in (*request.attachments, *request.inserts):
+            if self._has_explicit_at(instruction):
+                timeline_duration = max(
+                    timeline_duration,
+                    max(float(instruction.at or 0.0), 0.0)
+                    + self._get_instruction_output_duration(instruction),
+                )
+
         for channel_id, kind, instructions in (
             (10, "attachment", request.attachments),
             (11, "insert", request.inserts),
@@ -3836,7 +3855,8 @@ class VideoEngine:
             normalized_instruction.start = max(float(normalized_instruction.start or 0.0) + source_offset, 0.0)
         duration = max(float(item["duration"]), 0.001)
         if item.get("trim_to_reference"):
-            normalized_instruction.end = normalized_instruction.start + duration
+            playback_rate = max(float(normalized_instruction.playback_rate or 1.0), 1e-6)
+            normalized_instruction.end = normalized_instruction.start + duration * playback_rate
         output_path = temp_dir / f"fast_overlay_{int(item['channel_id']):02d}_{int(item['index']):04d}.mp4"
         source_path = self._resolve_media_path(normalized_instruction.source)
         if not source_path.exists():
@@ -3853,6 +3873,109 @@ class VideoEngine:
             outro_fade_black=0.0,
         )
         return output_path
+
+    def _render_fast_heavy_transition_segment(
+        self,
+        previous_path: Path,
+        next_path: Path,
+        output_path: Path,
+        previous_duration: float,
+        next_duration: float,
+        overlap: float,
+        transition: TransitionInstruction,
+        target_resolution: tuple[int, int],
+        fps: int,
+        bitrate: Optional[str],
+        sequence_index: int,
+    ) -> None:
+        previous_duration = max(float(previous_duration), overlap)
+        next_duration = max(float(next_duration), overlap)
+        overlap = max(float(overlap), 0.001)
+        filters: list[str] = []
+
+        if transition.type == TransitionType.WHIP_PAN:
+            filters.extend(
+                [
+                    (
+                        f"[0:v]fps={fps},format=yuv420p,settb=AVTB,"
+                        f"trim=start={max(previous_duration - overlap, 0.0):.6f}:end={previous_duration:.6f},"
+                        "setpts=PTS-STARTPTS[vheavy_prev]"
+                    ),
+                    (
+                        f"[1:v]fps={fps},format=yuv420p,settb=AVTB,"
+                        f"trim=start=0:end={overlap:.6f},setpts=PTS-STARTPTS[vheavy_next]"
+                    ),
+                ]
+            )
+            filters.extend(
+                self._build_fast_whip_pan_segment_filters(
+                    previous_tail_label="vheavy_prev",
+                    next_head_label="vheavy_next",
+                    output_label="vheavy_out",
+                    sequence_index=sequence_index,
+                    transition=transition,
+                    duration=overlap,
+                    target_resolution=target_resolution,
+                    fps=fps,
+                )
+            )
+        else:
+            previous_filters = [f"[0:v]fps={fps}", "format=yuv420p", "settb=AVTB"]
+            previous_filters.extend(
+                self._fast_transition_edge_filters(transition, previous_duration, "outro", fps)
+            )
+            previous_filters.extend(
+                [
+                    f"trim=start={max(previous_duration - overlap, 0.0):.6f}:end={previous_duration:.6f}",
+                    "setpts=PTS-STARTPTS",
+                ]
+            )
+            next_filters = [f"[1:v]fps={fps}", "format=yuv420p", "settb=AVTB"]
+            next_filters.extend(
+                self._fast_transition_edge_filters(transition, next_duration, "intro", fps)
+            )
+            next_filters.extend(
+                [
+                    f"trim=start=0:end={overlap:.6f}",
+                    "setpts=PTS-STARTPTS",
+                ]
+            )
+            filters.extend(
+                [
+                    ",".join(previous_filters) + "[vheavy_prev]",
+                    ",".join(next_filters) + "[vheavy_next]",
+                    (
+                        "[vheavy_prev][vheavy_next]"
+                        f"xfade=transition={self._fast_xfade_name(transition)}:"
+                        f"duration={overlap:.6f}:offset=0,format=yuv420p,"
+                        f"fps={fps},settb=AVTB[vheavy_out]"
+                    ),
+                ]
+            )
+
+        command = [
+            "ffmpeg",
+            "-y",
+            "-nostdin",
+            "-hide_banner",
+            "-loglevel",
+            "error",
+            *self._build_ffmpeg_runtime_args(),
+            "-i",
+            str(previous_path),
+            "-i",
+            str(next_path),
+            "-filter_complex",
+            ";".join(filters),
+            "-map",
+            "[vheavy_out]",
+            "-an",
+            *self._build_fast_video_codec_args(bitrate, "mp4"),
+            "-t",
+            f"{overlap:.6f}",
+            str(output_path),
+        ]
+        self._run_external_command(command, f"Fast transition segment {sequence_index}")
 
     def _render_fast_overlay_timeline(
         self,
@@ -3886,6 +4009,8 @@ class VideoEngine:
                     items[future_to_pos[future]]["path"] = future.result()
 
             filters: list[str] = []
+            heavy_transition_files: list[Path] = []
+            heavy_transition_inputs: dict[int, int] = {}
             target_w, target_h = target_resolution
             main_positions = [
                 (position, item)
@@ -3917,7 +4042,11 @@ class VideoEngine:
                     # A whip-pan between main clips is composed as one moving
                     # scene below. Applying blur to each source here would blur
                     # the seam twice and reintroduce the old visible line.
-                    if previous_transition and previous_transition.type == TransitionType.MOTION_BLUR:
+                    if (
+                        previous_transition
+                        and previous_transition.type == TransitionType.MOTION_BLUR
+                        and instruction_index == 0
+                    ):
                         main_filters.extend(
                             self._fast_transition_edge_filters(
                                 previous_transition, duration, "intro", request.output.fps
@@ -3928,9 +4057,9 @@ class VideoEngine:
                         if instruction.transitions_after
                         else None
                     )
-                    if outro_transition and (
-                        outro_transition.type == TransitionType.MOTION_BLUR
-                        or instruction_index == len(request.clips) - 1
+                    if (
+                        outro_transition
+                        and instruction_index == len(request.clips) - 1
                     ):
                         main_filters.extend(
                             self._fast_transition_edge_filters(
@@ -3972,6 +4101,38 @@ class VideoEngine:
                     boundary_transitions.append(transition)
                     boundary_gaps.append(max(next_start - previous_end, 0.0))
 
+                for boundary_index, (overlap, transition) in enumerate(
+                    zip(boundary_overlaps, boundary_transitions)
+                ):
+                    if (
+                        overlap <= 1e-6
+                        or transition is None
+                        or transition.type not in {TransitionType.MOTION_BLUR, TransitionType.WHIP_PAN}
+                    ):
+                        continue
+                    previous_item = main_labels[boundary_index][1]
+                    next_item = main_labels[boundary_index + 1][1]
+                    previous_path = previous_item.get("path")
+                    next_path = next_item.get("path")
+                    if not isinstance(previous_path, Path) or not isinstance(next_path, Path):
+                        raise VideoEngineError("Normalized transition source is missing")
+                    transition_path = temp_dir / f"fast_heavy_transition_{boundary_index:04d}.mp4"
+                    self._render_fast_heavy_transition_segment(
+                        previous_path=previous_path,
+                        next_path=next_path,
+                        output_path=transition_path,
+                        previous_duration=max(float(previous_item["duration"]), 0.001),
+                        next_duration=max(float(next_item["duration"]), 0.001),
+                        overlap=overlap,
+                        transition=transition,
+                        target_resolution=target_resolution,
+                        fps=request.output.fps,
+                        bitrate=request.output.bitrate,
+                        sequence_index=boundary_index,
+                    )
+                    heavy_transition_inputs[boundary_index] = len(items) + len(heavy_transition_files)
+                    heavy_transition_files.append(transition_path)
+
                 clip_parts: list[dict[str, Optional[str]]] = []
                 for sequence_index, (source_label, item) in enumerate(main_labels):
                     duration = max(float(item["duration"]), 0.001)
@@ -3980,11 +4141,15 @@ class VideoEngine:
                     body_start = min(incoming, duration)
                     body_end = max(min(duration - outgoing, duration), body_start)
                     requested_parts: list[tuple[str, float, float]] = []
-                    if incoming > 1e-6:
+                    incoming_is_prebuilt = (
+                        sequence_index > 0 and sequence_index - 1 in heavy_transition_inputs
+                    )
+                    outgoing_is_prebuilt = sequence_index in heavy_transition_inputs
+                    if incoming > 1e-6 and not incoming_is_prebuilt:
                         requested_parts.append(("head", 0.0, incoming))
                     if body_end - body_start > 1e-6:
                         requested_parts.append(("body", body_start, body_end))
-                    if outgoing > 1e-6:
+                    if outgoing > 1e-6 and not outgoing_is_prebuilt:
                         requested_parts.append(("tail", max(duration - outgoing, 0.0), duration))
                     if not requested_parts:
                         requested_parts.append(("body", 0.0, duration))
@@ -4027,10 +4192,17 @@ class VideoEngine:
                     if overlap > 1e-6:
                         previous_tail_label = clip_parts[boundary_index]["tail"]
                         next_head_label = clip_parts[boundary_index + 1]["head"]
-                        if not previous_tail_label or not next_head_label:
-                            raise VideoEngineError("Unable to build bounded transition segments")
                         transition_label = f"vtransition{boundary_index}"
-                        if transition and transition.type == TransitionType.WHIP_PAN:
+                        if boundary_index in heavy_transition_inputs:
+                            transition_input = heavy_transition_inputs[boundary_index]
+                            filters.append(
+                                f"[{transition_input}:v]fps={request.output.fps},format=yuv420p,"
+                                f"trim=start=0:end={overlap:.6f},setpts=PTS-STARTPTS,"
+                                f"settb=AVTB[{transition_label}]"
+                            )
+                        elif not previous_tail_label or not next_head_label:
+                            raise VideoEngineError("Unable to build bounded transition segments")
+                        elif transition and transition.type == TransitionType.WHIP_PAN:
                             filters.extend(
                                 self._build_fast_whip_pan_segment_filters(
                                     previous_tail_label=previous_tail_label,
@@ -4118,11 +4290,21 @@ class VideoEngine:
                 )
                 intro_fade = min(max(float(item.get("intro_fade", 0.0) or 0.0), 0.0), duration)
                 outro_fade = min(max(float(item.get("outro_fade", 0.0) or 0.0), 0.0), duration)
-                if intro_fade > 0.0 and self._fast_transition_uses_alpha_fade(intro_transition):
-                    video_filters.append(f"fade=t=in:st=0:d={intro_fade:.6f}:alpha=1")
-                if outro_fade > 0.0 and self._fast_transition_uses_alpha_fade(outro_transition):
+                if intro_fade > 0.0 and intro_transition is not None:
+                    if intro_transition.type == TransitionType.FADE_BLACK:
+                        video_filters.append(f"fade=t=in:st=0:d={intro_fade:.6f}:color=black")
+                    elif self._fast_transition_uses_alpha_fade(intro_transition):
+                        video_filters.append(f"fade=t=in:st=0:d={intro_fade:.6f}:alpha=1")
+                if outro_fade > 0.0 and outro_transition is not None:
                     fade_start = max(duration - outro_fade, 0.0)
-                    video_filters.append(f"fade=t=out:st={fade_start:.6f}:d={outro_fade:.6f}:alpha=1")
+                    if outro_transition.type == TransitionType.FADE_BLACK:
+                        video_filters.append(
+                            f"fade=t=out:st={fade_start:.6f}:d={outro_fade:.6f}:color=black"
+                        )
+                    elif self._fast_transition_uses_alpha_fade(outro_transition):
+                        video_filters.append(
+                            f"fade=t=out:st={fade_start:.6f}:d={outro_fade:.6f}:alpha=1"
+                        )
                 start = max(float(item["start"]), 0.0)
                 end = min(start + duration, timeline_duration)
                 video_filters.append(f"setpts=PTS-STARTPTS+{start:.6f}/TB")
@@ -4143,7 +4325,7 @@ class VideoEngine:
                 timeline_duration,
                 temp_dir,
             )
-            video_input_count = len(items)
+            video_input_count = len(items) + len(heavy_transition_files)
             if ass_assets is not None:
                 ass_path, ass_fonts_dir = ass_assets
                 escaped_ass_path = ass_path.as_posix().replace(":", r"\:").replace("'", r"\'")
@@ -4194,7 +4376,8 @@ class VideoEngine:
                 final_audio_label = "aout"
                 inputs = "".join(f"[{label}]" for label in audio_labels)
                 filters.append(
-                    f"{inputs}amix=inputs={len(audio_labels)}:duration=longest:dropout_transition=0,"
+                    f"{inputs}amix=inputs={len(audio_labels)}:duration=longest:"
+                    "dropout_transition=0:normalize=0,"
                     f"atrim=0:{timeline_duration:.6f},asetpts=PTS-STARTPTS[{final_audio_label}]"
                 )
 
@@ -4209,6 +4392,8 @@ class VideoEngine:
             ]
             for item in items:
                 command += ["-i", str(item["path"])]
+            for transition_path in heavy_transition_files:
+                command += ["-i", str(transition_path)]
             for track in audio_tracks:
                 command += ["-i", str(track["path"])]
             command += [
@@ -4442,7 +4627,8 @@ class VideoEngine:
                 final_audio_label = "aout"
                 inputs = "".join(f"[{label}]" for label in audio_labels)
                 filters.append(
-                    f"{inputs}amix=inputs={len(audio_labels)}:duration=longest:dropout_transition=0,"
+                    f"{inputs}amix=inputs={len(audio_labels)}:duration=longest:"
+                    "dropout_transition=0:normalize=0,"
                     f"atrim=0:{current_duration:.6f},asetpts=PTS-STARTPTS[{final_audio_label}]"
                 )
 
