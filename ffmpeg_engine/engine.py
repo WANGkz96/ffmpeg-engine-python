@@ -4046,13 +4046,13 @@ class VideoEngine:
                     previous_transition = None
                     if instruction_index > 0 and request.clips[instruction_index - 1].transitions_after:
                         previous_transition = request.clips[instruction_index - 1].transitions_after[0]
-                    # A whip-pan between main clips is composed as one moving
-                    # scene below. Applying blur to each source here would blur
-                    # the seam twice and reintroduce the old visible line.
+                    # Overlapping transitions are rendered as bounded segments
+                    # below. A non-fading motion blur has no overlap by design,
+                    # so its incoming blur must remain on the clip edge.
                     if (
                         previous_transition
                         and previous_transition.type == TransitionType.MOTION_BLUR
-                        and instruction_index == 0
+                        and not previous_transition.fade
                     ):
                         main_filters.extend(
                             self._fast_transition_edge_filters(
@@ -4066,7 +4066,13 @@ class VideoEngine:
                     )
                     if (
                         outro_transition
-                        and instruction_index == len(request.clips) - 1
+                        and (
+                            (
+                                outro_transition.type == TransitionType.MOTION_BLUR
+                                and not outro_transition.fade
+                            )
+                            or instruction_index == len(request.clips) - 1
+                        )
                     ):
                         main_filters.extend(
                             self._fast_transition_edge_filters(
@@ -4104,6 +4110,16 @@ class VideoEngine:
                         if previous_instruction.transitions_after
                         else None
                     )
+                    if (
+                        transition is not None
+                        and transition.type == TransitionType.MOTION_BLUR
+                        and not transition.fade
+                        and overlap < 1.0 / max(int(request.output.fps), 1)
+                    ):
+                        # Playback-rate rounding can leave a sub-frame geometric
+                        # overlap at an otherwise adjacent blur-cut. Treat it as
+                        # the zero-overlap transition requested by the caller.
+                        overlap = 0.0
                     boundary_overlaps.append(overlap)
                     boundary_transitions.append(transition)
                     boundary_gaps.append(max(next_start - previous_end, 0.0))
