@@ -285,6 +285,7 @@ from .models import (
     AudioInstruction,
     BackgroundMode,
     ClipInstruction,
+    EditorProxyInstruction,
     FitMode,
     ImageInstruction,
     InsertInstruction,
@@ -887,6 +888,8 @@ class VideoEngine:
     # --- MAIN RENDER LOGIC ---
 
     def render(self, request: RenderRequest) -> RenderResult:
+        if request.mode == ProcessingMode.EDITOR_PROXY:
+            return self._render_editor_proxy(request)
         if request.mode == ProcessingMode.CONCAT_NORMALIZE:
             return self._render_concat_normalize(request)
 
@@ -946,6 +949,125 @@ class VideoEngine:
             gc.collect()
 
         return RenderResult(status="ok", duration=final_clip.duration, output=output_path, timeline=timeline)
+
+    def _build_editor_proxy_video_codec_args(
+        self,
+        proxy: EditorProxyInstruction,
+        extension: Optional[str] = None,
+        *,
+        force_cpu: bool = False,
+    ) -> List[str]:
+        use_gpu = not force_cpu and self._get_bool_env("FFMPEG_USE_GPU", False)
+        thread_count = self._get_thread_count("FFMPEG_THREADS")
+        if use_gpu:
+            args = [
+                "-c:v", "h264_nvenc",
+                "-preset", os.getenv("EDITOR_PROXY_GPU_PRESET", "p1"),
+                "-profile:v", "high",
+                "-rc:v", "vbr",
+                "-cq:v", str(proxy.quality),
+            ]
+        else:
+            args = [
+                "-c:v", "libx264",
+                "-preset", os.getenv("EDITOR_PROXY_X264_PRESET", "ultrafast"),
+                "-profile:v", "high",
+                "-crf", str(proxy.quality),
+            ]
+        args += ["-threads", str(thread_count), "-pix_fmt", "yuv420p"]
+        if extension in {"mp4", "mov"}:
+            args += ["-tag:v", "avc1"]
+        return args
+
+    def _editor_proxy_command(
+        self,
+        source_path: Path,
+        output_path: Path,
+        proxy: EditorProxyInstruction,
+        *,
+        force_cpu: bool = False,
+    ) -> List[str]:
+        # The comma in min() must be escaped for ffmpeg's filter parser.  This
+        # keeps small source clips from being upscaled while making the output
+        # height at most max_height and dimensions browser-compatible.
+        filter_graph = (
+            f"fps={proxy.fps},"
+            f"scale=-2:min({proxy.max_height}\\,ih):flags=fast_bilinear,"
+            "setsar=1,format=yuv420p"
+        )
+        command = [
+            "ffmpeg", "-y", "-nostdin", "-hide_banner", "-loglevel", "error",
+            *self._build_ffmpeg_runtime_args(),
+            "-i", str(source_path),
+            "-map", "0:v:0",
+        ]
+        if proxy.include_audio:
+            command += ["-map", "0:a?"]
+        command += [
+            "-dn", "-map_metadata", "-1",
+            "-vf", filter_graph,
+            *self._build_editor_proxy_video_codec_args(
+                proxy,
+                output_path.suffix.lower().lstrip("."),
+                force_cpu=force_cpu,
+            ),
+        ]
+        if proxy.include_audio:
+            command += ["-c:a", "aac", "-b:a", proxy.audio_bitrate, "-ar", "48000", "-ac", "2"]
+        else:
+            command += ["-an"]
+        if output_path.suffix.lower() in {".mp4", ".mov"}:
+            command += ["-movflags", "+faststart"]
+        command.append(str(output_path))
+        return command
+
+    def _render_editor_proxy(self, request: RenderRequest) -> RenderResult:
+        proxy = request.editor_proxy
+        if proxy is None:
+            return RenderResult(
+                status="error",
+                duration=0.0,
+                output=Path(""),
+                message="editor_proxy settings are required",
+            )
+
+        source_path = self._resolve_media_path(proxy.source)
+        if not source_path.exists() or not source_path.is_file():
+            return RenderResult(
+                status="error",
+                duration=0.0,
+                output=Path(""),
+                message=f"Editor proxy source not found: {source_path}",
+            )
+
+        output_path = self._resolve_output_path(request)
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        try:
+            self._run_external_command(
+                self._editor_proxy_command(source_path, output_path, proxy),
+                f"FFmpeg editor proxy {source_path.name}",
+            )
+        except VideoEngineError:
+            # Preview generation must remain available on hosts whose NVENC
+            # session is busy or unavailable.  CPU ultrafast is still a direct
+            # transcode and never falls back to the MoviePy render pipeline.
+            if not self._get_bool_env("FFMPEG_USE_GPU", False):
+                raise
+            logger.warning("NVENC editor proxy failed for %s; retrying with CPU", source_path.name)
+            self._run_external_command(
+                self._editor_proxy_command(source_path, output_path, proxy, force_cpu=True),
+                f"FFmpeg CPU editor proxy {source_path.name}",
+            )
+
+        return RenderResult(
+            status="ok",
+            duration=self._probe_duration_seconds(output_path),
+            output=output_path,
+            message=(
+                f"Editor proxy ready: max_height={proxy.max_height}, fps={proxy.fps}, "
+                f"audio={'on' if proxy.include_audio else 'off'}"
+            ),
+        )
 
     def _render_channels(self, request: RenderRequest, target_resolution: tuple[int, int]) -> RenderResult:
         final_clip = None

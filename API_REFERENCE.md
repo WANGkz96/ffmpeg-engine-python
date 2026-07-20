@@ -76,7 +76,7 @@ High-level structure:
 
 | Field | Type | Default | Notes |
 | --- | --- | --- | --- |
-| `mode` | enum | `render` | `render` = current MoviePy render pipeline. `concat_normalize` = fast FFmpeg pipeline: normalize each clip to target FPS+resolution and concatenate. |
+| `mode` | enum | `render` | `render` = current MoviePy render pipeline. `concat_normalize` = fast FFmpeg pipeline: normalize each clip to target FPS+resolution and concatenate. `editor_proxy` = one fast low-bandwidth clone for editor playback. |
 
 #### `mode=concat_normalize` behavior
 
@@ -90,6 +90,13 @@ High-level structure:
 - Supports the legacy `clips[]` sequence and global `texts[]`/`zoom_border`/`show_source`.
 - Does not implement arbitrary `timeline.channels`, `attachments`, `inserts`, images, or transition composition. Use `mode=render` for full channel composition.
 - Still returns the same response structure and supports `detail_answer`.
+
+#### `mode=editor_proxy` behavior
+
+- Uses a direct FFmpeg transcode only; MoviePy, timeline composition, overlays, and final-render effects are not involved.
+- Requires an `editor_proxy` object with `source`; `max_height` defaults to `480`, `fps` defaults to `15`, and `quality` defaults to `30`.
+- Keeps the aspect ratio, avoids upscaling smaller source files, emits browser-compatible H.264/AAC MP4, and puts `moov` at the front of the file.
+- Defaults to low-bitrate AAC audio (`64k`) so source-audio edits remain possible; set `include_audio: false` to omit it.
 
 ### Output Settings
 

@@ -15,7 +15,7 @@ HTTP-based video rendering microservice powered by FastAPI, MoviePy, and FFmpeg.
 - JSON detail mode (`detail_answer`) with per-clip timeline start/end values.
 - Download endpoint (`/downloads/...`) and absolute output file paths in JSON responses.
 - Safe defaults for incomplete output settings (`format=mp4`, `fps=30`, datetime filename, `1920x1080` fallback resolution).
-- Optional fast processing mode (`mode=concat_normalize`) for normalize+concat via pure FFmpeg (video + audio, faster than full composition render).
+- Optional fast processing modes: `mode=concat_normalize` for normalize+concat, and `mode=editor_proxy` for a single low-bandwidth editor preview clone via pure FFmpeg (both avoid full MoviePy composition).
 
 ## Quick Start
 
@@ -74,6 +74,7 @@ The compose file mounts:
 Performance knobs:
 - `RENDER_MODE_CONCURRENCY` limits how many `mode=render` jobs can run at once. Default in compose: `4`.
 - `CONCAT_NORMALIZE_CONCURRENCY` limits how many `mode=concat_normalize` jobs can run at once. Default in compose: `1` (extra requests wait in queue).
+- `EDITOR_PROXY_MODE_CONCURRENCY` limits simultaneous `mode=editor_proxy` jobs. Default: `2`.
 - `FFMPEG_USE_GPU=1` enables NVENC for output encoding when available. This is already enabled in the current container.
 - `FFMPEG_RENDER_FAST_PATH=1` lets compatible `mode=render` requests bypass MoviePy frame generation and use an FFmpeg-only linear render path.
 - `FFMPEG_RENDER_FAST_PATH_STRICT=1` prevents silent fallback to the old MoviePy path when the fast path is enabled.
@@ -87,6 +88,27 @@ Performance knobs:
 - Requests targeting the same output filename are still serialized to avoid two renders writing to the same file at once.
 - `mode=render` now runs inside isolated subprocess workers instead of the FastAPI process, so multiple render requests can use multiple CPU cores and a single render crash is less likely to take down the whole API.
 - If the client disconnects while a queued/running job is waiting inside the API, the server attempts to cancel the corresponding worker process.
+
+### Editor proxy mode
+
+`mode=editor_proxy` makes one lightweight browser-preview clone directly with FFmpeg. It does not use MoviePy, transitions, overlays, or the final-render path. The caller supplies the source and target proxy settings; the normal `output` block controls the temporary downloadable MP4 filename.
+
+```json
+{
+  "mode": "editor_proxy",
+  "output": { "filename": "editor-proxy-example.mp4", "format": "mp4" },
+  "editor_proxy": {
+    "source": "/external_media/run-id/original/source.mp4",
+    "max_height": 480,
+    "fps": 15,
+    "quality": 30,
+    "include_audio": true,
+    "audio_bitrate": "64k"
+  }
+}
+```
+
+With `FFMPEG_USE_GPU=1`, the mode uses NVENC preset `p1` by default; if that fails, it retries with CPU `libx264` preset `ultrafast`. The MP4 is web-optimized with `+faststart`.
 
 Absolute paths in Docker:
 - Containers cannot directly read host paths like `C:/...` unless that host folder is mounted.

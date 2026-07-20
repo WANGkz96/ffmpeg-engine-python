@@ -100,6 +100,17 @@ def _get_concat_mode_concurrency() -> int:
         return 1
 
 
+def _get_editor_proxy_mode_concurrency() -> int:
+    raw_value = os.getenv("EDITOR_PROXY_MODE_CONCURRENCY", "").strip()
+    if not raw_value:
+        return 2
+    try:
+        return max(int(raw_value), 1)
+    except ValueError:
+        logger.warning("Invalid EDITOR_PROXY_MODE_CONCURRENCY=%r; falling back to 2", raw_value)
+        return 2
+
+
 def _get_disconnect_poll_seconds() -> float:
     raw_value = os.getenv("REQUEST_DISCONNECT_POLL_SECONDS", "").strip()
     if not raw_value:
@@ -123,6 +134,7 @@ def _cancel_render_on_client_disconnect() -> bool:
 
 render_mode_semaphore = asyncio.Semaphore(_get_render_mode_concurrency())
 concat_mode_semaphore = asyncio.Semaphore(_get_concat_mode_concurrency())
+editor_proxy_mode_semaphore = asyncio.Semaphore(_get_editor_proxy_mode_concurrency())
 output_lock_registry_guard = asyncio.Lock()
 output_locks: dict[str, asyncio.Lock] = {}
 cors_allow_origins = _get_cors_allow_origins()
@@ -347,7 +359,11 @@ def _parse_render_result(payload: dict) -> RenderResult:
 
 
 def _get_mode_semaphore(mode: ProcessingMode) -> asyncio.Semaphore:
-    return concat_mode_semaphore if mode == ProcessingMode.CONCAT_NORMALIZE else render_mode_semaphore
+    if mode == ProcessingMode.CONCAT_NORMALIZE:
+        return concat_mode_semaphore
+    if mode == ProcessingMode.EDITOR_PROXY:
+        return editor_proxy_mode_semaphore
+    return render_mode_semaphore
 
 
 async def _acquire_semaphore_with_disconnect(

@@ -87,6 +87,7 @@ class InsertPlacement(str, Enum):
 class ProcessingMode(str, Enum):
     RENDER = "render"
     CONCAT_NORMALIZE = "concat_normalize"
+    EDITOR_PROXY = "editor_proxy"
 
 
 class TransitionDirection(str, Enum):
@@ -473,9 +474,21 @@ class TimelineInstruction(BaseModel):
     channels: List[TimelineChannelInstruction] = Field(default_factory=list)
 
 
+class EditorProxyInstruction(BaseModel):
+    """Low-bandwidth proxy settings used by a remote video editor preview."""
+
+    source: Path
+    max_height: int = Field(480, ge=144, le=2160)
+    fps: int = Field(15, ge=1, le=60)
+    quality: int = Field(30, ge=0, le=51)
+    include_audio: bool = True
+    audio_bitrate: str = "64k"
+
+
 class RenderRequest(BaseModel):
     mode: ProcessingMode = ProcessingMode.RENDER
     output: OutputInstruction = Field(default_factory=OutputInstruction)
+    editor_proxy: Optional[EditorProxyInstruction] = None
     clips: List[ClipInstruction] = Field(default_factory=list)
     attachments: List[InsertInstruction] = Field(default_factory=list)
     inserts: List[InsertInstruction] = Field(default_factory=list)
@@ -498,6 +511,12 @@ class RenderRequest(BaseModel):
         elif isinstance(timeline, dict) and "channels" not in timeline and "clips" in timeline:
             values["timeline"] = {"channels": [timeline]}
 
+        return values
+
+    @root_validator(skip_on_failure=True)
+    def require_editor_proxy_settings(cls, values):
+        if values.get("mode") == ProcessingMode.EDITOR_PROXY and values.get("editor_proxy") is None:
+            raise ValueError("editor_proxy settings are required when mode=editor_proxy")
         return values
 
 
