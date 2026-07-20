@@ -99,7 +99,7 @@ Performance knobs:
   "output": { "filename": "editor-proxy-example.mp4", "format": "mp4" },
   "editor_proxy": {
     "source": "/external_media/run-id/original/source.mp4",
-    "max_height": 480,
+    "short_side": 480,
     "fps": 15,
     "quality": 30,
     "include_audio": true,
@@ -107,6 +107,8 @@ Performance knobs:
   }
 }
 ```
+
+`short_side` is applied to the smaller source dimension: landscape footage becomes approximately `854x480`, while portrait footage becomes approximately `480x854`. Aspect ratio is preserved and smaller inputs are not upscaled. The legacy `max_height` request field remains accepted as an alias for `short_side`.
 
 With `FFMPEG_USE_GPU=1`, the mode uses NVENC preset `p1` by default; if that fails, it retries with CPU `libx264` preset `ultrafast`. The MP4 is web-optimized with `+faststart`.
 

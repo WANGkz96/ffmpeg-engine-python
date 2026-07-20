@@ -478,11 +478,17 @@ class EditorProxyInstruction(BaseModel):
     """Low-bandwidth proxy settings used by a remote video editor preview."""
 
     source: Path
-    max_height: int = Field(480, ge=144, le=2160)
+    short_side: int = Field(480, ge=144, le=2160)
     fps: int = Field(15, ge=1, le=60)
     quality: int = Field(30, ge=0, le=51)
     include_audio: bool = True
     audio_bitrate: str = "64k"
+
+    @root_validator(pre=True)
+    def normalize_short_side_alias(cls, values):
+        if isinstance(values, dict) and "short_side" not in values and "max_height" in values:
+            values["short_side"] = values["max_height"]
+        return values
 
 
 class RenderRequest(BaseModel):

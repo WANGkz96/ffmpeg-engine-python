@@ -987,12 +987,15 @@ class VideoEngine:
         *,
         force_cpu: bool = False,
     ) -> List[str]:
-        # The comma in min() must be escaped for ffmpeg's filter parser.  This
-        # keeps small source clips from being upscaled while making the output
-        # height at most max_height and dimensions browser-compatible.
+        # Scale the shorter dimension to short_side, regardless of orientation.
+        # Using the source short side as the upper bound avoids upscaling small
+        # clips, while force_divisible_by keeps H.264 dimensions even.
+        scale_box = f"min({proxy.short_side}\\,min(iw\\,ih))"
         filter_graph = (
             f"fps={proxy.fps},"
-            f"scale=-2:min({proxy.max_height}\\,ih):flags=fast_bilinear,"
+            f"scale={scale_box}:{scale_box}:"
+            "force_original_aspect_ratio=increase:force_divisible_by=2:"
+            "flags=fast_bilinear,"
             "setsar=1,format=yuv420p"
         )
         command = [
@@ -1064,7 +1067,7 @@ class VideoEngine:
             duration=self._probe_duration_seconds(output_path),
             output=output_path,
             message=(
-                f"Editor proxy ready: max_height={proxy.max_height}, fps={proxy.fps}, "
+                f"Editor proxy ready: short_side={proxy.short_side}, fps={proxy.fps}, "
                 f"audio={'on' if proxy.include_audio else 'off'}"
             ),
         )

@@ -94,8 +94,8 @@ High-level structure:
 #### `mode=editor_proxy` behavior
 
 - Uses a direct FFmpeg transcode only; MoviePy, timeline composition, overlays, and final-render effects are not involved.
-- Requires an `editor_proxy` object with `source`; `max_height` defaults to `480`, `fps` defaults to `15`, and `quality` defaults to `30`.
-- Keeps the aspect ratio, avoids upscaling smaller source files, emits browser-compatible H.264/AAC MP4, and puts `moov` at the front of the file.
+- Requires an `editor_proxy` object with `source`; `short_side` defaults to `480`, `fps` defaults to `15`, and `quality` defaults to `30`. The deprecated `max_height` field is accepted as an alias for `short_side`.
+- Scales the smaller dimension to `short_side` (`854x480` landscape or `480x854` portrait at 16:9), keeps the aspect ratio, avoids upscaling smaller source files, emits browser-compatible H.264/AAC MP4, and puts `moov` at the front of the file.
 - Defaults to low-bitrate AAC audio (`64k`) so source-audio edits remain possible; set `include_audio: false` to omit it.
 
 ### Output Settings
