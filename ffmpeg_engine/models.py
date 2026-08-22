@@ -342,6 +342,26 @@ class InsertInstruction(ClipInstruction):
     placement: InsertPlacement = InsertPlacement.TIME
 
 
+class AudioVolumeKeyframe(BaseModel):
+    time: float = Field(..., ge=0.0)
+    multiplier: float = Field(..., ge=0.0, le=8.0)
+
+
+class AudioEffectInstruction(BaseModel):
+    type: Literal["reverb"] = "reverb"
+    start: float = Field(0.0, ge=0.0)
+    end: float = Field(..., gt=0.0)
+    mix: float = Field(0.16, ge=0.0, le=0.5)
+
+
+class VideoEffectInstruction(BaseModel):
+    type: Literal["grayscale"] = "grayscale"
+    start: float = Field(0.0, ge=0.0)
+    end: float = Field(..., gt=0.0)
+    fade_in: float = Field(1.0, ge=0.0)
+    fade_out: float = Field(1.0, ge=0.0)
+
+
 class AudioInstruction(BaseModel):
     source: Path
     start: float = Field(0.0, ge=0.0)
@@ -351,6 +371,8 @@ class AudioInstruction(BaseModel):
     volume: float = Field(1.0, ge=0.0)
     fade_in: float = Field(0.0, ge=0.0)
     fade_out: float = Field(0.0, ge=0.0)
+    volume_keyframes: List[AudioVolumeKeyframe] = Field(default_factory=list)
+    effects: List[AudioEffectInstruction] = Field(default_factory=list)
 
     @root_validator(pre=True)
     def normalize_audio_aliases(cls, values):
@@ -500,6 +522,7 @@ class RenderRequest(BaseModel):
     inserts: List[InsertInstruction] = Field(default_factory=list)
     timeline: Optional[TimelineInstruction] = None
     audio: List[AudioInstruction] = Field(default_factory=list)
+    video_effects: List[VideoEffectInstruction] = Field(default_factory=list)
     texts: List[TextInstruction] = Field(default_factory=list)
     images: List[ImageInstruction] = Field(default_factory=list)
     zoom_border: Optional[ZoomBorderInstruction] = None

@@ -899,6 +899,8 @@ class VideoEngine:
         fast_result = self._try_render_fast_path(request, target_resolution)
         if fast_result is not None:
             return fast_result
+        if request.video_effects or any(item.volume_keyframes or item.effects for item in request.audio):
+            raise VideoEngineError("Timeline video/audio effects require FFMPEG_RENDER_FAST_PATH=1")
         return self._render_channels(request, target_resolution)
 
         clips = []
@@ -2983,9 +2985,93 @@ class VideoEngine:
 
     @staticmethod
     def _requires_fast_overlay_timeline(request: RenderRequest) -> bool:
-        if request.attachments or request.inserts:
+        if request.attachments or request.inserts or request.video_effects:
+            return True
+        if any(item.volume_keyframes or item.effects for item in request.audio):
             return True
         return any(VideoEngine._has_explicit_at(instruction) for instruction in request.clips)
+
+    @staticmethod
+    def _build_volume_keyframe_expression(keyframes: list[object], timeline_start: float) -> str:
+        points = sorted(
+            (
+                max(float(getattr(point, "time", 0.0)) - timeline_start, 0.0),
+                max(float(getattr(point, "multiplier", 1.0)), 0.0),
+            )
+            for point in keyframes
+        )
+        if not points:
+            return "1"
+        deduplicated: list[tuple[float, float]] = []
+        for point in points:
+            if deduplicated and abs(point[0] - deduplicated[-1][0]) <= 1e-6:
+                deduplicated[-1] = point
+            else:
+                deduplicated.append(point)
+        if len(deduplicated) == 1:
+            return f"{deduplicated[0][1]:.6f}"
+        expression = f"{deduplicated[-1][1]:.6f}"
+        for index in range(len(deduplicated) - 2, -1, -1):
+            time_a, value_a = deduplicated[index]
+            time_b, value_b = deduplicated[index + 1]
+            delta = max(time_b - time_a, 1e-6)
+            ramp = (
+                f"{value_a:.6f}+({value_b - value_a:.6f})*"
+                f"(t-{time_a:.6f})/{delta:.6f}"
+            )
+            expression = (
+                f"if(lt(t\\,{time_a:.6f})\\,{value_a:.6f}\\,"
+                f"if(lt(t\\,{time_b:.6f})\\,{ramp}\\,{expression}))"
+            )
+        return expression
+
+    @staticmethod
+    def _build_grayscale_weight_expression(effects: list[object]) -> str:
+        weights: list[str] = []
+        for effect in effects:
+            if str(getattr(effect, "type", "")) != "grayscale":
+                continue
+            start = max(float(getattr(effect, "start", 0.0)), 0.0)
+            end = max(float(getattr(effect, "end", start)), start)
+            if end <= start:
+                continue
+            fade_in = min(max(float(getattr(effect, "fade_in", 0.0)), 0.0), end - start)
+            fade_out = min(max(float(getattr(effect, "fade_out", 0.0)), 0.0), end - start)
+            fade_in_end = min(start + fade_in, end)
+            fade_out_start = max(end - fade_out, fade_in_end)
+            rise = "1" if fade_in <= 1e-6 else f"(T-{start:.6f})/{fade_in:.6f}"
+            fall = "0" if fade_out <= 1e-6 else f"({end:.6f}-T)/{fade_out:.6f}"
+            weights.append(
+                f"if(lt(T\\,{start:.6f})\\,0\\,"
+                f"if(lt(T\\,{fade_in_end:.6f})\\,{rise}\\,"
+                f"if(lt(T\\,{fade_out_start:.6f})\\,1\\,"
+                f"if(lt(T\\,{end:.6f})\\,{fall}\\,0))))"
+            )
+        if not weights:
+            return "0"
+        expression = weights[0]
+        for weight in weights[1:]:
+            expression = f"max({expression}\\,{weight})"
+        return expression
+
+    @staticmethod
+    def _build_reverb_mix_expression(effects: list[object], timeline_start: float) -> str:
+        weights: list[str] = []
+        for effect in effects:
+            if str(getattr(effect, "type", "")) != "reverb":
+                continue
+            start = max(float(getattr(effect, "start", 0.0)) - timeline_start, 0.0)
+            end = max(float(getattr(effect, "end", start)) - timeline_start, start)
+            mix = min(max(float(getattr(effect, "mix", 0.16)), 0.0), 0.5)
+            if end <= start or mix <= 0.0:
+                continue
+            weights.append(f"if(between(t\\,{start:.6f}\\,{end:.6f})\\,{mix:.6f}\\,0)")
+        if not weights:
+            return "0"
+        expression = weights[0]
+        for weight in weights[1:]:
+            expression = f"max({expression}\\,{weight})"
+        return expression
 
     @staticmethod
     def _fast_xfade_name(transition: TransitionInstruction) -> str:
@@ -3751,6 +3837,8 @@ class VideoEngine:
                     "volume": max(float(instruction.volume or 0.0), 0.0),
                     "fade_in": max(float(instruction.fade_in or 0.0), 0.0),
                     "fade_out": max(float(instruction.fade_out or 0.0), 0.0),
+                    "volume_keyframes": list(instruction.volume_keyframes),
+                    "effects": list(instruction.effects),
                 }
             )
         return tracks
@@ -4410,6 +4498,17 @@ class VideoEngine:
                 )
                 current_label = "vbase"
 
+            if request.video_effects:
+                grayscale_weight = self._build_grayscale_weight_expression(request.video_effects)
+                if grayscale_weight != "0":
+                    filters.append(f"[{current_label}]split=2[vcolor][vgray_src]")
+                    filters.append("[vgray_src]hue=s=0[vgray]")
+                    filters.append(
+                        "[vcolor][vgray]blend="
+                        f"all_expr='A*(1-({grayscale_weight}))+B*({grayscale_weight})'[veffected]"
+                    )
+                    current_label = "veffected"
+
             for position, item in overlay_positions:
                 instruction = item["instruction"]
                 assert isinstance(instruction, ClipInstruction)
@@ -4495,10 +4594,14 @@ class VideoEngine:
                 source_start = float(track["source_start"])
                 source_end = float(track["source_end"])
                 track_duration = max(source_end - source_start, 0.001)
+                volume_expression = self._build_volume_keyframe_expression(
+                    list(track.get("volume_keyframes") or []),
+                    float(track["timeline_start"]),
+                )
                 audio_filters = [
                     f"atrim=start={source_start:.6f}:end={source_end:.6f}",
                     "asetpts=PTS-STARTPTS",
-                    f"volume={float(track['volume']):.6f}",
+                    f"volume='{float(track['volume']):.6f}*({volume_expression})':eval=frame",
                 ]
                 fade_in = min(float(track["fade_in"]), track_duration)
                 fade_out = min(float(track["fade_out"]), track_duration)
@@ -4508,9 +4611,31 @@ class VideoEngine:
                     fade_start = max(track_duration - fade_out, 0.0)
                     audio_filters.append(f"afade=t=out:st={fade_start:.6f}:d={fade_out:.6f}")
                 delay_ms = max(int(round(float(track["timeline_start"]) * 1000.0)), 0)
-                if delay_ms > 0:
-                    audio_filters.append(f"adelay={delay_ms}:all=1")
-                filters.append(f"[{input_index}:a]{','.join(audio_filters)}[{label}]")
+                reverb_mix_expression = self._build_reverb_mix_expression(
+                    list(track.get("effects") or []),
+                    float(track["timeline_start"]),
+                )
+                if reverb_mix_expression == "0":
+                    if delay_ms > 0:
+                        audio_filters.append(f"adelay={delay_ms}:all=1")
+                    filters.append(f"[{input_index}:a]{','.join(audio_filters)}[{label}]")
+                else:
+                    base_label = f"{label}base"
+                    filters.append(f"[{input_index}:a]{','.join(audio_filters)}[{base_label}]")
+                    filters.append(f"[{base_label}]asplit=2[{label}dry][{label}wet_src]")
+                    filters.append(
+                        f"[{label}wet_src]aecho=0.8:0.35:35|55:0.35|0.22,"
+                        f"volume='{reverb_mix_expression}':eval=frame[{label}wet]"
+                    )
+                    mixed_label = f"{label}mixed"
+                    filters.append(
+                        f"[{label}dry][{label}wet]"
+                        f"amix=inputs=2:duration=first:normalize=0[{mixed_label}]"
+                    )
+                    if delay_ms > 0:
+                        filters.append(f"[{mixed_label}]adelay={delay_ms}:all=1[{label}]")
+                    else:
+                        filters.append(f"[{mixed_label}]anull[{label}]")
                 audio_labels.append(label)
 
             final_audio_label = None
