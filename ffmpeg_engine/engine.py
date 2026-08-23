@@ -2992,16 +2992,22 @@ class VideoEngine:
         return any(VideoEngine._has_explicit_at(instruction) for instruction in request.clips)
 
     @staticmethod
-    def _build_volume_keyframe_expression(keyframes: list[object], timeline_start: float) -> str:
+    def _build_volume_keyframe_expression(
+        keyframes: list[object],
+        timeline_start: float,
+        default_volume: float,
+    ) -> str:
         points = sorted(
             (
                 max(float(getattr(point, "time", 0.0)) - timeline_start, 0.0),
-                max(float(getattr(point, "multiplier", 1.0)), 0.0),
+                min(max(float(getattr(point, "volume", default_volume)), 0.0), 1.0),
             )
             for point in keyframes
         )
         if not points:
-            return "1"
+            return f"{max(float(default_volume), 0.0):.6f}"
+        if points[0][0] > 1e-6:
+            points.insert(0, (0.0, min(max(float(default_volume), 0.0), 1.0)))
         deduplicated: list[tuple[float, float]] = []
         for point in points:
             if deduplicated and abs(point[0] - deduplicated[-1][0]) <= 1e-6:
@@ -4597,11 +4603,12 @@ class VideoEngine:
                 volume_expression = self._build_volume_keyframe_expression(
                     list(track.get("volume_keyframes") or []),
                     float(track["timeline_start"]),
+                    float(track["volume"]),
                 )
                 audio_filters = [
                     f"atrim=start={source_start:.6f}:end={source_end:.6f}",
                     "asetpts=PTS-STARTPTS",
-                    f"volume='{float(track['volume']):.6f}*({volume_expression})':eval=frame",
+                    f"volume='{volume_expression}':eval=frame",
                 ]
                 fade_in = min(float(track["fade_in"]), track_duration)
                 fade_out = min(float(track["fade_out"]), track_duration)

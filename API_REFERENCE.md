@@ -187,7 +187,7 @@ Each entry represents a source video fragment.
 | `chroma_key` | object | disabled | Removes a color background by generating an alpha mask. See "Chroma Key Settings". |
 | `adjustments` | object | zeros | Fine tuning for brightness, contrast, saturation, hue (`-1.0`..`1.0`). |
 | `playback_rate` | float | `1.0` | Speed multiplier. |
-| `volume` | float | `1.0` | Linear multiplier. |
+| `volume` | float | `1.0` | Output volume level. |
 
 #### Optional Source Reframe
 
@@ -369,9 +369,10 @@ Used in `transitions_before` and `transitions_after`.
 | `source` | string | required | Path to audio file. |
 | `start` | float | `0.0` | Timeline start. |
 | `end` | float | clip duration | Trim point. |
-| `volume` | float | `1.0` | Linear multiplier. |
+| `volume` | float | `1.0` | Base output volume level. |
 | `fade_in` | float | `0.0` | Fade-in duration (seconds). |
 | `fade_out` | float | `0.0` | Fade-out duration. |
+| `volume_keyframes` | array | `[]` | Timeline volume automation. Each item uses `time` and an absolute `volume` from `0.0` to `1.0`; for example, `0.58532` means 58.532%. |
 
 ### Text Overlays
 
