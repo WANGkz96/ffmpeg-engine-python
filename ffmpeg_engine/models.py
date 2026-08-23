@@ -82,6 +82,10 @@ class InsertPlacement(str, Enum):
     TIME = "time"
     START = "start"
     END = "end"
+    # The pipeline resolves the numbered narration pause to an explicit `at`
+    # timestamp before calling the engine. Keep the semantic placement in the
+    # request/detail response while using that resolved timestamp for timing.
+    PAUSE = "pause"
 
 
 class ProcessingMode(str, Enum):
