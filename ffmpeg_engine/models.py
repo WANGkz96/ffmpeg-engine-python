@@ -344,7 +344,7 @@ class InsertInstruction(ClipInstruction):
 
 class AudioVolumeKeyframe(BaseModel):
     time: float = Field(..., ge=0.0)
-    multiplier: float = Field(..., ge=0.0, le=8.0)
+    multiplier: float = Field(..., ge=0.0, le=20.0)
 
 
 class AudioEffectInstruction(BaseModel):
