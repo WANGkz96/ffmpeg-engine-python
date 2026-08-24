@@ -3068,7 +3068,7 @@ class VideoEngine:
                 continue
             start = max(float(getattr(effect, "start", 0.0)) - timeline_start, 0.0)
             end = max(float(getattr(effect, "end", start)) - timeline_start, start)
-            mix = min(max(float(getattr(effect, "mix", 0.16)), 0.0), 0.5)
+            mix = min(max(float(getattr(effect, "mix", 0.16)), 0.0), 1.0)
             if end <= start or mix <= 0.0:
                 continue
             fade_in = min(max(float(getattr(effect, "fade_in", 1.0)), 0.0), end - start)
@@ -4644,13 +4644,25 @@ class VideoEngine:
                     base_label = f"{label}base"
                     filters.append(f"[{input_index}:a]{','.join(audio_filters)}[{base_label}]")
                     filters.append(f"[{base_label}]asplit=2[{label}dry][{label}wet_src]")
+                    # The reference profile is the tested variant #2:
+                    # aecho=0.8:0.50:35|70|105:0.35|0.20|0.12.
+                    # `mix` is a true dry/wet control: 0 is dry, 1 is the
+                    # complete tested profile. The old implementation kept
+                    # the dry signal at 100% and added wet signal on top,
+                    # which made the effect both inconsistent and too quiet
+                    # at the UI's 0.5 ceiling.
                     filters.append(
-                        f"[{label}wet_src]aecho=0.8:0.42:45|90|150:0.42|0.25|0.14,"
-                        f"volume='{reverb_mix_expression}':eval=frame[{label}wet]"
+                        f"[{label}wet_src]aecho=0.8:0.50:35|70|105:0.35|0.20|0.12[{label}wet_raw]"
+                    )
+                    filters.append(
+                        f"[{label}dry]volume='1-({reverb_mix_expression})':eval=frame[{label}dry_scaled]"
+                    )
+                    filters.append(
+                        f"[{label}wet_raw]volume='{reverb_mix_expression}':eval=frame[{label}wet]"
                     )
                     mixed_label = f"{label}mixed"
                     filters.append(
-                        f"[{label}dry][{label}wet]"
+                        f"[{label}dry_scaled][{label}wet]"
                         f"amix=inputs=2:duration=first:normalize=0[{mixed_label}]"
                     )
                     if delay_ms > 0:

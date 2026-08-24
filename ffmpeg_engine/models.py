@@ -355,7 +355,7 @@ class AudioEffectInstruction(BaseModel):
     type: Literal["reverb"] = "reverb"
     start: float = Field(0.0, ge=0.0)
     end: float = Field(..., gt=0.0)
-    mix: float = Field(0.16, ge=0.0, le=0.5)
+    mix: float = Field(0.16, ge=0.0, le=1.0)
     fade_in: float = Field(1.0, ge=0.0)
     fade_out: float = Field(1.0, ge=0.0)
 
