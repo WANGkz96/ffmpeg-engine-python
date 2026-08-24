@@ -3071,7 +3071,21 @@ class VideoEngine:
             mix = min(max(float(getattr(effect, "mix", 0.16)), 0.0), 0.5)
             if end <= start or mix <= 0.0:
                 continue
-            weights.append(f"if(between(t\\,{start:.6f}\\,{end:.6f})\\,{mix:.6f}\\,0)")
+            fade_in = min(max(float(getattr(effect, "fade_in", 1.0)), 0.0), end - start)
+            fade_out = min(max(float(getattr(effect, "fade_out", 1.0)), 0.0), end - start)
+            fade_in_end = min(start + fade_in, end)
+            fade_out_start = max(end - fade_out, fade_in_end)
+            if fade_in <= 1e-6 and fade_out <= 1e-6:
+                weights.append(f"if(between(t\\,{start:.6f}\\,{end:.6f})\\,{mix:.6f}\\,0)")
+                continue
+            rise = f"{mix:.6f}" if fade_in <= 1e-6 else f"({mix:.6f}*(t-{start:.6f})/{fade_in:.6f})"
+            fall = f"{mix:.6f}" if fade_out <= 1e-6 else f"({mix:.6f}*({end:.6f}-t)/{fade_out:.6f})"
+            weights.append(
+                f"if(lt(t\\,{start:.6f})\\,0\\,"
+                f"if(lt(t\\,{fade_in_end:.6f})\\,{rise}\\,"
+                f"if(lt(t\\,{fade_out_start:.6f})\\,{mix:.6f}\\,"
+                f"if(lt(t\\,{end:.6f})\\,{fall}\\,0))))"
+            )
         if not weights:
             return "0"
         expression = weights[0]
@@ -4631,7 +4645,7 @@ class VideoEngine:
                     filters.append(f"[{input_index}:a]{','.join(audio_filters)}[{base_label}]")
                     filters.append(f"[{base_label}]asplit=2[{label}dry][{label}wet_src]")
                     filters.append(
-                        f"[{label}wet_src]aecho=0.8:0.35:35|55:0.35|0.22,"
+                        f"[{label}wet_src]aecho=0.8:0.42:45|90|150:0.42|0.25|0.14,"
                         f"volume='{reverb_mix_expression}':eval=frame[{label}wet]"
                     )
                     mixed_label = f"{label}mixed"
