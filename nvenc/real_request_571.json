@@ -1,0 +1,5007 @@
+{
+  "mode": "render",
+  "detail_answer": true,
+  "clips": [
+    {
+      "source": "/external_media/20260710_015158_571/original/Kamene_Kugle_Zavidovi_i_Stone_Spheres_Zavidovi_i [Jxhi7Bcoo8c].mp4",
+      "start": 101,
+      "end": 112,
+      "fit_mode": "contain",
+      "background_mode": "blur",
+      "reframe": {
+        "mode": "center_zoom",
+        "zoom_percent": 0.34
+      },
+      "at": 0,
+      "volume": 0,
+      "local_source": "/workspace/server/data/pipeline/STEP_3_MEDIA/20260710_015158_571/original/Kamene_Kugle_Zavidovi_i_Stone_Spheres_Zavidovi_i [Jxhi7Bcoo8c].mp4",
+      "source_duration": 228,
+      "mirror_horizontal": true,
+      "transitions_after": [
+        {
+          "type": "motion_blur",
+          "duration": 0.674,
+          "direction": "right",
+          "blur_strength": 130,
+          "fade": false,
+          "glow": true
+        }
+      ]
+    },
+    {
+      "source": "/external_media/20260710_015158_571/original/Pyramids_tunnels_and_huge_stone_balls_in_Bosnia_UPlived [RUroxtmNEso].mp4",
+      "start": 76,
+      "end": 86,
+      "fit_mode": "contain",
+      "background_mode": "blur",
+      "reframe": {
+        "mode": "center_zoom",
+        "zoom_percent": 0.2
+      },
+      "at": 11,
+      "volume": 0,
+      "local_source": "/workspace/server/data/pipeline/STEP_3_MEDIA/20260710_015158_571/original/Pyramids_tunnels_and_huge_stone_balls_in_Bosnia_UPlived [RUroxtmNEso].mp4",
+      "source_duration": 269,
+      "mirror_horizontal": true,
+      "transitions_after": [
+        {
+          "type": "whip_pan",
+          "duration": 0.555,
+          "direction": "right",
+          "blur_strength": 327,
+          "fade": true,
+          "glow": false
+        }
+      ]
+    },
+    {
+      "source": "/external_media/20260710_015158_571/original/Massive_Ancient_60_Tonne_Stone_Sphere_of_Bosnia [u2plJ2sD75U].mp4",
+      "start": 106,
+      "end": 117,
+      "fit_mode": "contain",
+      "background_mode": "blur",
+      "reframe": {
+        "mode": "center_zoom",
+        "zoom_percent": 0.2
+      },
+      "at": 21,
+      "volume": 0,
+      "local_source": "/workspace/server/data/pipeline/STEP_3_MEDIA/20260710_015158_571/original/Massive_Ancient_60_Tonne_Stone_Sphere_of_Bosnia [u2plJ2sD75U].mp4",
+      "source_duration": 179,
+      "mirror_horizontal": true,
+      "transitions_after": [
+        {
+          "type": "whip_pan",
+          "duration": 0.517,
+          "direction": "left",
+          "blur_strength": 286,
+          "fade": true,
+          "glow": true
+        }
+      ]
+    },
+    {
+      "source": "/external_media/20260710_015158_571/original/Mysterious_Giant_Sphere_Unearthed_In_Bosnia_Forest [ScxR3znAq-Q].mp4",
+      "start": 52.5,
+      "end": 63.5,
+      "fit_mode": "contain",
+      "background_mode": "blur",
+      "reframe": {
+        "mode": "center_zoom",
+        "zoom_percent": 0.23
+      },
+      "at": 32,
+      "volume": 0,
+      "local_source": "/workspace/server/data/pipeline/STEP_3_MEDIA/20260710_015158_571/original/Mysterious_Giant_Sphere_Unearthed_In_Bosnia_Forest [ScxR3znAq-Q].mp4",
+      "source_duration": 174,
+      "mirror_horizontal": true,
+      "transitions_after": [
+        {
+          "type": "crossfade",
+          "duration": 0.609
+        }
+      ]
+    },
+    {
+      "source": "/external_media/20260710_015158_571/original/Kamene_Kugle_Zavidovi_i_Stone_Spheres_Zavidovi_i [Jxhi7Bcoo8c].mp4",
+      "start": 183,
+      "end": 199.29,
+      "fit_mode": "contain",
+      "background_mode": "blur",
+      "reframe": {
+        "mode": "center_zoom",
+        "zoom_percent": 0.37
+      },
+      "at": 43,
+      "volume": 0,
+      "local_source": "/workspace/server/data/pipeline/STEP_3_MEDIA/20260710_015158_571/original/Kamene_Kugle_Zavidovi_i_Stone_Spheres_Zavidovi_i [Jxhi7Bcoo8c].mp4",
+      "source_duration": 228,
+      "mirror_horizontal": true,
+      "transitions_after": [
+        {
+          "type": "motion_blur",
+          "duration": 0.674,
+          "direction": "right",
+          "blur_strength": 130,
+          "fade": false,
+          "glow": true
+        }
+      ]
+    },
+    {
+      "source": "/external_media/20260710_015158_571/original/Massive_Ancient_60_Tonne_Stone_Sphere_of_Bosnia [u2plJ2sD75U].mp4",
+      "start": 95,
+      "end": 105,
+      "fit_mode": "contain",
+      "background_mode": "blur",
+      "reframe": {
+        "mode": "center_zoom",
+        "zoom_percent": 0.2
+      },
+      "at": 59.29,
+      "volume": 0,
+      "local_source": "/workspace/server/data/pipeline/STEP_3_MEDIA/20260710_015158_571/original/Massive_Ancient_60_Tonne_Stone_Sphere_of_Bosnia [u2plJ2sD75U].mp4",
+      "source_duration": 179,
+      "playback_rate": 0.856,
+      "mirror_horizontal": true,
+      "transitions_after": [
+        {
+          "type": "whip_pan",
+          "duration": 0.706,
+          "direction": "right",
+          "blur_strength": 212,
+          "fade": true,
+          "glow": false
+        }
+      ]
+    },
+    {
+      "source": "/external_media/20260710_015158_571/original/Pyramids_tunnels_and_huge_stone_balls_in_Bosnia_UPlived [RUroxtmNEso].mp4",
+      "start": 19.245,
+      "end": 23.398,
+      "fit_mode": "contain",
+      "background_mode": "blur",
+      "reframe": {
+        "mode": "center_zoom",
+        "zoom_percent": 0.2
+      },
+      "at": 70.972,
+      "volume": 0,
+      "local_source": "/workspace/server/data/pipeline/STEP_3_MEDIA/20260710_015158_571/original/Pyramids_tunnels_and_huge_stone_balls_in_Bosnia_UPlived [RUroxtmNEso].mp4",
+      "source_duration": 269,
+      "mirror_horizontal": true,
+      "transitions_after": [
+        {
+          "type": "crossfade",
+          "duration": 0.6
+        }
+      ]
+    },
+    {
+      "source": "/external_media/20260710_015158_571/original/Pyramids_tunnels_and_huge_stone_balls_in_Bosnia_UPlived [RUroxtmNEso].mp4",
+      "start": 26.835,
+      "end": 31.31,
+      "fit_mode": "contain",
+      "background_mode": "blur",
+      "reframe": {
+        "mode": "center_zoom",
+        "zoom_percent": 0.2
+      },
+      "at": 75.125,
+      "volume": 0,
+      "local_source": "/workspace/server/data/pipeline/STEP_3_MEDIA/20260710_015158_571/original/Pyramids_tunnels_and_huge_stone_balls_in_Bosnia_UPlived [RUroxtmNEso].mp4",
+      "source_duration": 269,
+      "mirror_horizontal": true,
+      "transitions_after": [
+        {
+          "type": "crossfade",
+          "duration": 0.6
+        }
+      ]
+    },
+    {
+      "source": "/external_media/20260710_015158_571/original/Pyramids_tunnels_and_huge_stone_balls_in_Bosnia_UPlived [RUroxtmNEso].mp4",
+      "start": 232,
+      "end": 242,
+      "fit_mode": "contain",
+      "background_mode": "blur",
+      "reframe": {
+        "mode": "center_zoom",
+        "zoom_percent": 0.2
+      },
+      "at": 79.6,
+      "volume": 0,
+      "local_source": "/workspace/server/data/pipeline/STEP_3_MEDIA/20260710_015158_571/original/Pyramids_tunnels_and_huge_stone_balls_in_Bosnia_UPlived [RUroxtmNEso].mp4",
+      "source_duration": 269,
+      "playback_rate": 0.935,
+      "mirror_horizontal": true,
+      "transitions_after": [
+        {
+          "type": "fade_black",
+          "duration": 0.636
+        }
+      ]
+    },
+    {
+      "source": "/external_media/20260710_015158_571/original/The_Stone_Spheres_of_Bosnia [3Kz-4iS8cgw].mp4",
+      "start": 101.5,
+      "end": 111.5,
+      "fit_mode": "contain",
+      "background_mode": "blur",
+      "reframe": {
+        "mode": "center_zoom",
+        "zoom_percent": 0.2
+      },
+      "at": 90.29,
+      "volume": 0,
+      "local_source": "/workspace/server/data/pipeline/STEP_3_MEDIA/20260710_015158_571/original/The_Stone_Spheres_of_Bosnia [3Kz-4iS8cgw].mp4",
+      "source_duration": 260,
+      "mirror_horizontal": true,
+      "transitions_after": [
+        {
+          "type": "fade_black",
+          "duration": 0.738
+        }
+      ]
+    },
+    {
+      "source": "/external_media/20260710_015158_571/original/Massive_Ancient_60_Tonne_Stone_Sphere_of_Bosnia [u2plJ2sD75U].mp4",
+      "start": 144,
+      "end": 152,
+      "fit_mode": "contain",
+      "background_mode": "blur",
+      "reframe": {
+        "mode": "center_zoom",
+        "zoom_percent": 0.2
+      },
+      "at": 100.29,
+      "volume": 0,
+      "local_source": "/workspace/server/data/pipeline/STEP_3_MEDIA/20260710_015158_571/original/Massive_Ancient_60_Tonne_Stone_Sphere_of_Bosnia [u2plJ2sD75U].mp4",
+      "source_duration": 179,
+      "playback_rate": 0.63,
+      "mirror_horizontal": true,
+      "transitions_after": [
+        {
+          "type": "whip_pan",
+          "duration": 0.508,
+          "direction": "right",
+          "blur_strength": 245,
+          "fade": true,
+          "glow": true
+        }
+      ]
+    },
+    {
+      "source": "/external_media/20260710_015158_571/original/Pyramids_tunnels_and_huge_stone_balls_in_Bosnia_UPlived [RUroxtmNEso].mp4",
+      "start": 154,
+      "end": 160.377,
+      "fit_mode": "contain",
+      "background_mode": "blur",
+      "reframe": {
+        "mode": "center_zoom",
+        "zoom_percent": 0.2
+      },
+      "at": 112.99,
+      "volume": 0,
+      "local_source": "/workspace/server/data/pipeline/STEP_3_MEDIA/20260710_015158_571/original/Pyramids_tunnels_and_huge_stone_balls_in_Bosnia_UPlived [RUroxtmNEso].mp4",
+      "source_duration": 269,
+      "mirror_horizontal": true,
+      "transitions_after": [
+        {
+          "type": "whip_pan",
+          "duration": 0.737,
+          "direction": "right",
+          "blur_strength": 251,
+          "fade": true,
+          "glow": true
+        }
+      ]
+    },
+    {
+      "source": "/external_media/20260710_015158_571/original/The_secret_of_the_Bosnian_stone_balls_kamene_kugle [HuUQcolcop8].mp4",
+      "start": 314.5,
+      "end": 322.5,
+      "fit_mode": "contain",
+      "background_mode": "blur",
+      "reframe": {
+        "mode": "center_zoom",
+        "zoom_percent": 0.2
+      },
+      "at": 119.367,
+      "volume": 0,
+      "local_source": "/workspace/server/data/pipeline/STEP_3_MEDIA/20260710_015158_571/original/The_secret_of_the_Bosnian_stone_balls_kamene_kugle [HuUQcolcop8].mp4",
+      "source_duration": 381,
+      "playback_rate": 0.614,
+      "mirror_horizontal": true,
+      "transitions_after": [
+        {
+          "type": "crossfade",
+          "duration": 0.762
+        }
+      ]
+    },
+    {
+      "source": "/external_media/20260710_015158_571/original/Kamene_Kugle_Zavidovi_i_Stone_Spheres_Zavidovi_i [Jxhi7Bcoo8c].mp4",
+      "start": 120,
+      "end": 130,
+      "fit_mode": "contain",
+      "background_mode": "blur",
+      "reframe": {
+        "mode": "center_zoom",
+        "zoom_percent": 0.2
+      },
+      "at": 132.39,
+      "volume": 0,
+      "local_source": "/workspace/server/data/pipeline/STEP_3_MEDIA/20260710_015158_571/original/Kamene_Kugle_Zavidovi_i_Stone_Spheres_Zavidovi_i [Jxhi7Bcoo8c].mp4",
+      "source_duration": 228,
+      "mirror_horizontal": true,
+      "transitions_after": [
+        {
+          "type": "whip_pan",
+          "duration": 0.668,
+          "direction": "right",
+          "blur_strength": 187,
+          "fade": true,
+          "glow": false
+        }
+      ]
+    },
+    {
+      "source": "/external_media/20260710_015158_571/original/Microstructure_Sampling_-_Geological_Field_Work [3KLrH4rS-KY].mp4",
+      "start": 87.5,
+      "end": 98.5,
+      "fit_mode": "contain",
+      "background_mode": "blur",
+      "reframe": {
+        "mode": "center_zoom",
+        "zoom_percent": 0.2
+      },
+      "at": 142.39,
+      "volume": 0,
+      "local_source": "/workspace/server/data/pipeline/STEP_3_MEDIA/20260710_015158_571/original/Microstructure_Sampling_-_Geological_Field_Work [3KLrH4rS-KY].mp4",
+      "source_duration": 105,
+      "mirror_horizontal": true
+    },
+    {
+      "source": "/external_media/20260710_015158_571/original/Kamene_Kugle_Zavidovi_i_Stone_Spheres_Zavidovi_i [Jxhi7Bcoo8c].mp4",
+      "start": 137,
+      "end": 148,
+      "fit_mode": "contain",
+      "background_mode": "blur",
+      "reframe": {
+        "mode": "center_zoom",
+        "zoom_percent": 0.41
+      },
+      "at": 153.39,
+      "volume": 0,
+      "local_source": "/workspace/server/data/pipeline/STEP_3_MEDIA/20260710_015158_571/original/Kamene_Kugle_Zavidovi_i_Stone_Spheres_Zavidovi_i [Jxhi7Bcoo8c].mp4",
+      "source_duration": 228,
+      "mirror_horizontal": true,
+      "transitions_after": [
+        {
+          "type": "whip_pan",
+          "duration": 0.668,
+          "direction": "right",
+          "blur_strength": 187,
+          "fade": true,
+          "glow": false
+        }
+      ]
+    },
+    {
+      "source": "/external_media/20260710_015158_571/original/Pyramids_tunnels_and_huge_stone_balls_in_Bosnia_UPlived [RUroxtmNEso].mp4",
+      "start": 35,
+      "end": 42.553,
+      "fit_mode": "contain",
+      "background_mode": "blur",
+      "reframe": {
+        "mode": "center_zoom",
+        "zoom_percent": 0.2
+      },
+      "at": 164.39,
+      "volume": 0,
+      "local_source": "/workspace/server/data/pipeline/STEP_3_MEDIA/20260710_015158_571/original/Pyramids_tunnels_and_huge_stone_balls_in_Bosnia_UPlived [RUroxtmNEso].mp4",
+      "source_duration": 269,
+      "playback_rate": 0.867,
+      "mirror_horizontal": true,
+      "transitions_after": [
+        {
+          "type": "whip_pan",
+          "duration": 0.506,
+          "direction": "right",
+          "blur_strength": 236,
+          "fade": true,
+          "glow": true
+        }
+      ]
+    },
+    {
+      "source": "/external_media/20260710_015158_571/original/Pyramids_tunnels_and_huge_stone_balls_in_Bosnia_UPlived [RUroxtmNEso].mp4",
+      "start": 190,
+      "end": 201,
+      "fit_mode": "contain",
+      "background_mode": "blur",
+      "reframe": {
+        "mode": "center_zoom",
+        "zoom_percent": 0.2
+      },
+      "at": 173.102,
+      "volume": 0,
+      "local_source": "/workspace/server/data/pipeline/STEP_3_MEDIA/20260710_015158_571/original/Pyramids_tunnels_and_huge_stone_balls_in_Bosnia_UPlived [RUroxtmNEso].mp4",
+      "source_duration": 269,
+      "playback_rate": 0.895,
+      "mirror_horizontal": true,
+      "transitions_after": [
+        {
+          "type": "fade_black",
+          "duration": 2
+        }
+      ]
+    },
+    {
+      "source": "/external_media/20260710_015158_571/original/The_secret_of_the_Bosnian_stone_balls_kamene_kugle [HuUQcolcop8].mp4",
+      "start": 241.5,
+      "end": 252.5,
+      "fit_mode": "contain",
+      "background_mode": "blur",
+      "reframe": {
+        "mode": "center_zoom",
+        "zoom_percent": 0.2
+      },
+      "at": 185.39,
+      "volume": 0,
+      "local_source": "/workspace/server/data/pipeline/STEP_3_MEDIA/20260710_015158_571/original/The_secret_of_the_Bosnian_stone_balls_kamene_kugle [HuUQcolcop8].mp4",
+      "source_duration": 381,
+      "mirror_horizontal": true
+    },
+    {
+      "source": "/external_media/20260710_015158_571/original/Kamene_Kugle_Zavidovi_i_Stone_Spheres_Zavidovi_i [Jxhi7Bcoo8c].mp4",
+      "start": 198,
+      "end": 210,
+      "fit_mode": "contain",
+      "background_mode": "blur",
+      "reframe": {
+        "mode": "center_zoom",
+        "zoom_percent": 0.2
+      },
+      "at": 196.39,
+      "volume": 0,
+      "local_source": "/workspace/server/data/pipeline/STEP_3_MEDIA/20260710_015158_571/original/Kamene_Kugle_Zavidovi_i_Stone_Spheres_Zavidovi_i [Jxhi7Bcoo8c].mp4",
+      "source_duration": 228,
+      "mirror_horizontal": true,
+      "transitions_after": [
+        {
+          "type": "whip_pan",
+          "duration": 0.668,
+          "direction": "right",
+          "blur_strength": 187,
+          "fade": true,
+          "glow": false
+        }
+      ]
+    },
+    {
+      "source": "/external_media/20260710_015158_571/original/Massive_Ancient_60_Tonne_Stone_Sphere_of_Bosnia [u2plJ2sD75U].mp4",
+      "start": 31,
+      "end": 40,
+      "fit_mode": "contain",
+      "background_mode": "blur",
+      "reframe": {
+        "mode": "center_zoom",
+        "zoom_percent": 0.2
+      },
+      "at": 208.39,
+      "volume": 0,
+      "local_source": "/workspace/server/data/pipeline/STEP_3_MEDIA/20260710_015158_571/original/Massive_Ancient_60_Tonne_Stone_Sphere_of_Bosnia [u2plJ2sD75U].mp4",
+      "source_duration": 179,
+      "mirror_horizontal": true,
+      "transitions_after": [
+        {
+          "type": "whip_pan",
+          "duration": 0.508,
+          "direction": "right",
+          "blur_strength": 245,
+          "fade": true,
+          "glow": true
+        }
+      ]
+    },
+    {
+      "source": "/external_media/20260710_015158_571/original/Massive_Ancient_60_Tonne_Stone_Sphere_of_Bosnia [u2plJ2sD75U].mp4",
+      "start": 41,
+      "end": 50,
+      "fit_mode": "contain",
+      "background_mode": "blur",
+      "reframe": {
+        "mode": "center_zoom",
+        "zoom_percent": 0.2
+      },
+      "at": 217.39,
+      "volume": 0,
+      "local_source": "/workspace/server/data/pipeline/STEP_3_MEDIA/20260710_015158_571/original/Massive_Ancient_60_Tonne_Stone_Sphere_of_Bosnia [u2plJ2sD75U].mp4",
+      "source_duration": 179,
+      "mirror_horizontal": true
+    },
+    {
+      "source": "/external_media/20260710_015158_571/original/The_Stone_Spheres_of_Bosnia [3Kz-4iS8cgw].mp4",
+      "start": 154.5,
+      "end": 172.59,
+      "fit_mode": "contain",
+      "background_mode": "blur",
+      "reframe": {
+        "mode": "center_zoom",
+        "zoom_percent": 0.2
+      },
+      "at": 226.39,
+      "volume": 0,
+      "local_source": "/workspace/server/data/pipeline/STEP_3_MEDIA/20260710_015158_571/original/The_Stone_Spheres_of_Bosnia [3Kz-4iS8cgw].mp4",
+      "source_duration": 260,
+      "mirror_horizontal": true,
+      "transitions_after": [
+        {
+          "type": "fade_black",
+          "duration": 0.566
+        }
+      ]
+    },
+    {
+      "source": "/external_media/20260710_015158_571/original/Kamene_Kugle_Zavidovi_i_Stone_Spheres_Zavidovi_i [Jxhi7Bcoo8c].mp4",
+      "start": 146,
+      "end": 163.5,
+      "fit_mode": "contain",
+      "background_mode": "blur",
+      "reframe": {
+        "mode": "center_zoom",
+        "zoom_percent": 0.2
+      },
+      "at": 244.48,
+      "volume": 0,
+      "local_source": "/workspace/server/data/pipeline/STEP_3_MEDIA/20260710_015158_571/original/Kamene_Kugle_Zavidovi_i_Stone_Spheres_Zavidovi_i [Jxhi7Bcoo8c].mp4",
+      "source_duration": 228,
+      "mirror_horizontal": true
+    },
+    {
+      "source": "/external_media/20260710_015158_571/original/Mysterious_Giant_Sphere_Unearthed_In_Bosnia_Forest [ScxR3znAq-Q].mp4",
+      "start": 13.5,
+      "end": 25.5,
+      "fit_mode": "contain",
+      "background_mode": "blur",
+      "reframe": {
+        "mode": "center_zoom",
+        "zoom_percent": 0.2
+      },
+      "at": 261.98,
+      "volume": 0,
+      "local_source": "/workspace/server/data/pipeline/STEP_3_MEDIA/20260710_015158_571/original/Mysterious_Giant_Sphere_Unearthed_In_Bosnia_Forest [ScxR3znAq-Q].mp4",
+      "source_duration": 174,
+      "mirror_horizontal": true
+    },
+    {
+      "source": "/external_media/20260710_015158_571/original/Pyramids_tunnels_and_huge_stone_balls_in_Bosnia_UPlived [RUroxtmNEso].mp4",
+      "start": 171,
+      "end": 184,
+      "fit_mode": "contain",
+      "background_mode": "blur",
+      "reframe": {
+        "mode": "center_zoom",
+        "zoom_percent": 0.2
+      },
+      "at": 273.98,
+      "volume": 0,
+      "local_source": "/workspace/server/data/pipeline/STEP_3_MEDIA/20260710_015158_571/original/Pyramids_tunnels_and_huge_stone_balls_in_Bosnia_UPlived [RUroxtmNEso].mp4",
+      "source_duration": 269,
+      "mirror_horizontal": true,
+      "transitions_after": [
+        {
+          "type": "fade_black",
+          "duration": 0.733
+        }
+      ]
+    },
+    {
+      "source": "/external_media/20260710_015158_571/original/Pyramids_tunnels_and_huge_stone_balls_in_Bosnia_UPlived [RUroxtmNEso].mp4",
+      "start": 83,
+      "end": 95,
+      "fit_mode": "contain",
+      "background_mode": "blur",
+      "reframe": {
+        "mode": "center_zoom",
+        "zoom_percent": 0.2
+      },
+      "at": 286.98,
+      "volume": 0,
+      "local_source": "/workspace/server/data/pipeline/STEP_3_MEDIA/20260710_015158_571/original/Pyramids_tunnels_and_huge_stone_balls_in_Bosnia_UPlived [RUroxtmNEso].mp4",
+      "source_duration": 269,
+      "mirror_horizontal": true,
+      "transitions_after": [
+        {
+          "type": "fade_black",
+          "duration": 2
+        }
+      ]
+    },
+    {
+      "source": "/external_media/20260710_015158_571/original/Pyramids_tunnels_and_huge_stone_balls_in_Bosnia_UPlived [RUroxtmNEso].mp4",
+      "start": 95,
+      "end": 107.551,
+      "fit_mode": "contain",
+      "background_mode": "blur",
+      "reframe": {
+        "mode": "center_zoom",
+        "zoom_percent": 0.44
+      },
+      "at": 298.98,
+      "volume": 0,
+      "local_source": "/workspace/server/data/pipeline/STEP_3_MEDIA/20260710_015158_571/original/Pyramids_tunnels_and_huge_stone_balls_in_Bosnia_UPlived [RUroxtmNEso].mp4",
+      "source_duration": 269,
+      "mirror_horizontal": true,
+      "transitions_after": [
+        {
+          "type": "fade_black",
+          "duration": 2
+        }
+      ]
+    },
+    {
+      "source": "/external_media/20260710_015158_571/original/60_TON_STONE-SPHERES_in_Bosnian_Wilderness [pFwK5MWKYOM].mp4",
+      "start": 0,
+      "end": 8.214,
+      "asset_id": "asset_fa5a813585001a99",
+      "source_duration": 334,
+      "at": 311.531,
+      "volume": 0,
+      "local_source": "/workspace/server/data/pipeline/STEP_3_MEDIA/20260710_015158_571/original/60_TON_STONE-SPHERES_in_Bosnian_Wilderness [pFwK5MWKYOM].mp4",
+      "playback_rate": 0.74,
+      "reframe": {
+        "mode": "center_zoom",
+        "zoom_percent": 0.51
+      },
+      "mirror_horizontal": true
+    },
+    {
+      "source": "/external_media/20260710_015158_571/original/60_TON_STONE-SPHERES_in_Bosnian_Wilderness [pFwK5MWKYOM].mp4",
+      "start": 8.563,
+      "end": 17.235,
+      "asset_id": "asset_fa5a813585001a99",
+      "source_duration": 334,
+      "at": 322.634,
+      "volume": 0,
+      "local_source": "/workspace/server/data/pipeline/STEP_3_MEDIA/20260710_015158_571/original/60_TON_STONE-SPHERES_in_Bosnian_Wilderness [pFwK5MWKYOM].mp4",
+      "playback_rate": 0.74,
+      "reframe": {
+        "mode": "center_zoom",
+        "zoom_percent": 0.51
+      },
+      "mirror_horizontal": true
+    },
+    {
+      "source": "/external_media/20260710_015158_571/original/60_TON_STONE-SPHERES_in_Bosnian_Wilderness [pFwK5MWKYOM].mp4",
+      "start": 76.808,
+      "end": 86.899,
+      "asset_id": "asset_fa5a813585001a99",
+      "source_duration": 334,
+      "at": 334.355,
+      "volume": 0,
+      "local_source": "/workspace/server/data/pipeline/STEP_3_MEDIA/20260710_015158_571/original/60_TON_STONE-SPHERES_in_Bosnian_Wilderness [pFwK5MWKYOM].mp4",
+      "playback_rate": 0.74,
+      "reframe": {
+        "mode": "center_zoom",
+        "zoom_percent": 0.51
+      },
+      "mirror_horizontal": true
+    }
+  ],
+  "attachments": [
+    {
+      "source": "/external_media/20260710_015158_571/original/static_inserts/The Obscura/The Obscura Intro.mp4",
+      "at": 0,
+      "fit_mode": "contain",
+      "background_mode": "blur",
+      "placement": "time",
+      "volume": 0.2,
+      "asset_key": "The Obscura/The Obscura Intro.mp4",
+      "start": 0,
+      "end": 8,
+      "source_duration": 8,
+      "local_source": "/workspace/server/data/pipeline/STEP_3_MEDIA/20260710_015158_571/original/static_inserts/The Obscura/The Obscura Intro.mp4",
+      "transitions_before": [
+        {
+          "type": "motion_blur",
+          "duration": 0.741,
+          "direction": "left",
+          "blur_strength": 219,
+          "fade": false,
+          "glow": false
+        }
+      ],
+      "transitions_after": [
+        {
+          "type": "fade_black",
+          "duration": 2
+        }
+      ]
+    },
+    {
+      "source": "/external_media/20260710_015158_571/original/static_inserts/The Obscura/chromakey_hex_02db10_subscribe.mp4",
+      "at": 150,
+      "fit_mode": "contain",
+      "background_mode": "blur",
+      "placement": "time",
+      "volume": 1,
+      "asset_key": "The Obscura/chromakey_hex_02db10_subscribe.mp4",
+      "start": 0,
+      "end": 10.311,
+      "source_duration": 10.311,
+      "chroma_key": {
+        "enabled": true,
+        "color": "#02db10",
+        "similarity": 0.12,
+        "blend": 0.06,
+        "edge_blur": 1,
+        "spill": 0.15
+      },
+      "transitions_before": [
+        {
+          "type": "crossfade",
+          "duration": 0.482
+        }
+      ],
+      "local_source": "/workspace/server/data/pipeline/STEP_3_MEDIA/20260710_015158_571/original/static_inserts/The Obscura/chromakey_hex_02db10_subscribe.mp4",
+      "transitions_after": [
+        {
+          "type": "whip_pan",
+          "duration": 0.74,
+          "direction": "left",
+          "blur_strength": 340,
+          "fade": true,
+          "glow": true
+        }
+      ]
+    },
+    {
+      "source": "/external_media/20260710_015158_571/original/static_inserts/The Obscura/The Obscura Intro.mp4",
+      "at": 343.624,
+      "fit_mode": "contain",
+      "background_mode": "blur",
+      "placement": "time",
+      "volume": 0.1,
+      "asset_key": "The Obscura/The Obscura Intro.mp4",
+      "start": 0,
+      "end": 8,
+      "source_duration": 8,
+      "fade_out": 2,
+      "transitions_before": [
+        {
+          "type": "motion_blur",
+          "duration": 0.741,
+          "direction": "left",
+          "blur_strength": 219,
+          "fade": false,
+          "glow": false
+        }
+      ],
+      "local_source": "/workspace/server/data/pipeline/STEP_3_MEDIA/20260710_015158_571/original/static_inserts/The Obscura/The Obscura Intro.mp4",
+      "transitions_after": [
+        {
+          "type": "fade_black",
+          "duration": 2
+        }
+      ]
+    }
+  ],
+  "audio": [
+    {
+      "source": "/external_media/20260710_015158_571/final_assets/20260710_015158_571_speech_prepared.wav",
+      "start": 0,
+      "volume": 1,
+      "fade_in": 0,
+      "fade_out": 0,
+      "end": 351.624,
+      "at": 0,
+      "timeline_start": 0,
+      "local_source": "/workspace/server/data/pipeline/STEP_3_MEDIA/20260710_015158_571/final_assets/20260710_015158_571_speech_prepared.wav",
+      "source_duration": 351.624
+    },
+    {
+      "source": "/external_media/20260710_015158_571/final_assets/music_prepared.wav",
+      "start": 0,
+      "volume": 0.2,
+      "fade_in": 0.25,
+      "fade_out": 2,
+      "end": 351.624,
+      "at": 0,
+      "timeline_start": 0,
+      "local_source": "/workspace/server/data/pipeline/STEP_3_MEDIA/20260710_015158_571/final_assets/music_prepared.wav",
+      "source_duration": 351.624
+    }
+  ],
+  "texts": [
+    {
+      "content": "Welcome to The Obscura, where",
+      "start": 0.6,
+      "end": 2.7,
+      "position": "bottom",
+      "bottom_offset_px": 80,
+      "font": "Philosopher",
+      "font_size": 60,
+      "color": {
+        "r": 0,
+        "g": 0,
+        "b": 0,
+        "a": 1
+      },
+      "stroke_color": {
+        "r": 255,
+        "g": 255,
+        "b": 255,
+        "a": 0.9
+      },
+      "stroke_width": 2,
+      "shadow": true,
+      "glow": false,
+      "max_width": 768,
+      "animation": {
+        "fade_in": 0.08,
+        "fade_out": 0.08
+      }
+    },
+    {
+      "content": "we uncover hidden history and",
+      "start": 2.7,
+      "end": 5.389,
+      "position": "bottom",
+      "bottom_offset_px": 80,
+      "font": "Philosopher",
+      "font_size": 60,
+      "color": {
+        "r": 0,
+        "g": 0,
+        "b": 0,
+        "a": 1
+      },
+      "stroke_color": {
+        "r": 255,
+        "g": 255,
+        "b": 255,
+        "a": 0.9
+      },
+      "stroke_width": 2,
+      "shadow": true,
+      "glow": false,
+      "max_width": 768,
+      "animation": {
+        "fade_in": 0.08,
+        "fade_out": 0.08
+      }
+    },
+    {
+      "content": "ancient mysteries. Deep in the",
+      "start": 5.715,
+      "end": 8.12,
+      "position": "bottom",
+      "bottom_offset_px": 80,
+      "font": "Philosopher",
+      "font_size": 60,
+      "color": {
+        "r": 0,
+        "g": 0,
+        "b": 0,
+        "a": 1
+      },
+      "stroke_color": {
+        "r": 255,
+        "g": 255,
+        "b": 255,
+        "a": 0.9
+      },
+      "stroke_width": 2,
+      "shadow": true,
+      "glow": false,
+      "max_width": 768,
+      "animation": {
+        "fade_in": 0.08,
+        "fade_out": 0.08
+      }
+    },
+    {
+      "content": "quiet forests of Bosnia, half-buried",
+      "start": 8.45,
+      "end": 11.07,
+      "position": "bottom",
+      "bottom_offset_px": 80,
+      "font": "Philosopher",
+      "font_size": 60,
+      "color": {
+        "r": 0,
+        "g": 0,
+        "b": 0,
+        "a": 1
+      },
+      "stroke_color": {
+        "r": 255,
+        "g": 255,
+        "b": 255,
+        "a": 0.9
+      },
+      "stroke_width": 2,
+      "shadow": true,
+      "glow": false,
+      "max_width": 768,
+      "animation": {
+        "fade_in": 0.08,
+        "fade_out": 0.08
+      }
+    },
+    {
+      "content": "in the damp earth near",
+      "start": 11.2,
+      "end": 12.54,
+      "position": "bottom",
+      "bottom_offset_px": 80,
+      "font": "Philosopher",
+      "font_size": 60,
+      "color": {
+        "r": 0,
+        "g": 0,
+        "b": 0,
+        "a": 1
+      },
+      "stroke_color": {
+        "r": 255,
+        "g": 255,
+        "b": 255,
+        "a": 0.9
+      },
+      "stroke_width": 2,
+      "shadow": true,
+      "glow": false,
+      "max_width": 768,
+      "animation": {
+        "fade_in": 0.08,
+        "fade_out": 0.08
+      }
+    },
+    {
+      "content": "the town of Zavidovići, lies",
+      "start": 12.54,
+      "end": 14.88,
+      "position": "bottom",
+      "bottom_offset_px": 80,
+      "font": "Philosopher",
+      "font_size": 60,
+      "color": {
+        "r": 0,
+        "g": 0,
+        "b": 0,
+        "a": 1
+      },
+      "stroke_color": {
+        "r": 255,
+        "g": 255,
+        "b": 255,
+        "a": 0.9
+      },
+      "stroke_width": 2,
+      "shadow": true,
+      "glow": false,
+      "max_width": 768,
+      "animation": {
+        "fade_in": 0.08,
+        "fade_out": 0.08
+      }
+    },
+    {
+      "content": "an object that seems to",
+      "start": 14.88,
+      "end": 16.76,
+      "position": "bottom",
+      "bottom_offset_px": 80,
+      "font": "Philosopher",
+      "font_size": 60,
+      "color": {
+        "r": 0,
+        "g": 0,
+        "b": 0,
+        "a": 1
+      },
+      "stroke_color": {
+        "r": 255,
+        "g": 255,
+        "b": 255,
+        "a": 0.9
+      },
+      "stroke_width": 2,
+      "shadow": true,
+      "glow": false,
+      "max_width": 768,
+      "animation": {
+        "fade_in": 0.08,
+        "fade_out": 0.08
+      }
+    },
+    {
+      "content": "defy the very laws of",
+      "start": 16.76,
+      "end": 18.82,
+      "position": "bottom",
+      "bottom_offset_px": 80,
+      "font": "Philosopher",
+      "font_size": 60,
+      "color": {
+        "r": 0,
+        "g": 0,
+        "b": 0,
+        "a": 1
+      },
+      "stroke_color": {
+        "r": 255,
+        "g": 255,
+        "b": 255,
+        "a": 0.9
+      },
+      "stroke_width": 2,
+      "shadow": true,
+      "glow": false,
+      "max_width": 768,
+      "animation": {
+        "fade_in": 0.08,
+        "fade_out": 0.08
+      }
+    },
+    {
+      "content": "its surroundings. It is a",
+      "start": 18.82,
+      "end": 21.12,
+      "position": "bottom",
+      "bottom_offset_px": 80,
+      "font": "Philosopher",
+      "font_size": 60,
+      "color": {
+        "r": 0,
+        "g": 0,
+        "b": 0,
+        "a": 1
+      },
+      "stroke_color": {
+        "r": 255,
+        "g": 255,
+        "b": 255,
+        "a": 0.9
+      },
+      "stroke_width": 2,
+      "shadow": true,
+      "glow": false,
+      "max_width": 768,
+      "animation": {
+        "fade_in": 0.08,
+        "fade_out": 0.08
+      }
+    },
+    {
+      "content": "massive, rust-colored stone sphere, looking",
+      "start": 21.27,
+      "end": 24.72,
+      "position": "bottom",
+      "bottom_offset_px": 80,
+      "font": "Philosopher",
+      "font_size": 60,
+      "color": {
+        "r": 0,
+        "g": 0,
+        "b": 0,
+        "a": 1
+      },
+      "stroke_color": {
+        "r": 255,
+        "g": 255,
+        "b": 255,
+        "a": 0.9
+      },
+      "stroke_width": 2,
+      "shadow": true,
+      "glow": false,
+      "max_width": 768,
+      "animation": {
+        "fade_in": 0.08,
+        "fade_out": 0.08
+      }
+    },
+    {
+      "content": "less like a natural rock",
+      "start": 24.72,
+      "end": 26.48,
+      "position": "bottom",
+      "bottom_offset_px": 80,
+      "font": "Philosopher",
+      "font_size": 60,
+      "color": {
+        "r": 0,
+        "g": 0,
+        "b": 0,
+        "a": 1
+      },
+      "stroke_color": {
+        "r": 255,
+        "g": 255,
+        "b": 255,
+        "a": 0.9
+      },
+      "stroke_width": 2,
+      "shadow": true,
+      "glow": false,
+      "max_width": 768,
+      "animation": {
+        "fade_in": 0.08,
+        "fade_out": 0.08
+      }
+    },
+    {
+      "content": "and more like a colossal",
+      "start": 26.48,
+      "end": 27.97,
+      "position": "bottom",
+      "bottom_offset_px": 80,
+      "font": "Philosopher",
+      "font_size": 60,
+      "color": {
+        "r": 0,
+        "g": 0,
+        "b": 0,
+        "a": 1
+      },
+      "stroke_color": {
+        "r": 255,
+        "g": 255,
+        "b": 255,
+        "a": 0.9
+      },
+      "stroke_width": 2,
+      "shadow": true,
+      "glow": false,
+      "max_width": 768,
+      "animation": {
+        "fade_in": 0.08,
+        "fade_out": 0.08
+      }
+    },
+    {
+      "content": "cannonball fired by forgotten giants.",
+      "start": 28.54,
+      "end": 32.031,
+      "position": "bottom",
+      "bottom_offset_px": 80,
+      "font": "Philosopher",
+      "font_size": 60,
+      "color": {
+        "r": 0,
+        "g": 0,
+        "b": 0,
+        "a": 1
+      },
+      "stroke_color": {
+        "r": 255,
+        "g": 255,
+        "b": 255,
+        "a": 0.9
+      },
+      "stroke_width": 2,
+      "shadow": true,
+      "glow": false,
+      "max_width": 768,
+      "animation": {
+        "fade_in": 0.08,
+        "fade_out": 0.08
+      }
+    },
+    {
+      "content": "This is the Podubravlje sphere,",
+      "start": 32.76,
+      "end": 35.08,
+      "position": "bottom",
+      "bottom_offset_px": 80,
+      "font": "Philosopher",
+      "font_size": 60,
+      "color": {
+        "r": 0,
+        "g": 0,
+        "b": 0,
+        "a": 1
+      },
+      "stroke_color": {
+        "r": 255,
+        "g": 255,
+        "b": 255,
+        "a": 0.9
+      },
+      "stroke_width": 2,
+      "shadow": true,
+      "glow": false,
+      "max_width": 768,
+      "animation": {
+        "fade_in": 0.08,
+        "fade_out": 0.08
+      }
+    },
+    {
+      "content": "an absolute titan of stone",
+      "start": 35.38,
+      "end": 37.46,
+      "position": "bottom",
+      "bottom_offset_px": 80,
+      "font": "Philosopher",
+      "font_size": 60,
+      "color": {
+        "r": 0,
+        "g": 0,
+        "b": 0,
+        "a": 1
+      },
+      "stroke_color": {
+        "r": 255,
+        "g": 255,
+        "b": 255,
+        "a": 0.9
+      },
+      "stroke_width": 2,
+      "shadow": true,
+      "glow": false,
+      "max_width": 768,
+      "animation": {
+        "fade_in": 0.08,
+        "fade_out": 0.08
+      }
+    },
+    {
+      "content": "measuring over three meters in",
+      "start": 37.46,
+      "end": 40.22,
+      "position": "bottom",
+      "bottom_offset_px": 80,
+      "font": "Philosopher",
+      "font_size": 60,
+      "color": {
+        "r": 0,
+        "g": 0,
+        "b": 0,
+        "a": 1
+      },
+      "stroke_color": {
+        "r": 255,
+        "g": 255,
+        "b": 255,
+        "a": 0.9
+      },
+      "stroke_width": 2,
+      "shadow": true,
+      "glow": false,
+      "max_width": 768,
+      "animation": {
+        "fade_in": 0.08,
+        "fade_out": 0.08
+      }
+    },
+    {
+      "content": "diameter and weighing an estimated",
+      "start": 40.54,
+      "end": 42.52,
+      "position": "bottom",
+      "bottom_offset_px": 80,
+      "font": "Philosopher",
+      "font_size": 60,
+      "color": {
+        "r": 0,
+        "g": 0,
+        "b": 0,
+        "a": 1
+      },
+      "stroke_color": {
+        "r": 255,
+        "g": 255,
+        "b": 255,
+        "a": 0.9
+      },
+      "stroke_width": 2,
+      "shadow": true,
+      "glow": false,
+      "max_width": 768,
+      "animation": {
+        "fade_in": 0.08,
+        "fade_out": 0.08
+      }
+    },
+    {
+      "content": "thirty tons. Its surface carries",
+      "start": 42.52,
+      "end": 45.92,
+      "position": "bottom",
+      "bottom_offset_px": 80,
+      "font": "Philosopher",
+      "font_size": 60,
+      "color": {
+        "r": 0,
+        "g": 0,
+        "b": 0,
+        "a": 1
+      },
+      "stroke_color": {
+        "r": 255,
+        "g": 255,
+        "b": 255,
+        "a": 0.9
+      },
+      "stroke_width": 2,
+      "shadow": true,
+      "glow": false,
+      "max_width": 768,
+      "animation": {
+        "fade_in": 0.08,
+        "fade_out": 0.08
+      }
+    },
+    {
+      "content": "a deep, rusty-red hue, a",
+      "start": 45.92,
+      "end": 48.82,
+      "position": "bottom",
+      "bottom_offset_px": 80,
+      "font": "Philosopher",
+      "font_size": 60,
+      "color": {
+        "r": 0,
+        "g": 0,
+        "b": 0,
+        "a": 1
+      },
+      "stroke_color": {
+        "r": 255,
+        "g": 255,
+        "b": 255,
+        "a": 0.9
+      },
+      "stroke_width": 2,
+      "shadow": true,
+      "glow": false,
+      "max_width": 768,
+      "animation": {
+        "fade_in": 0.08,
+        "fade_out": 0.08
+      }
+    },
+    {
+      "content": "striking visual signature born from",
+      "start": 48.955,
+      "end": 51.66,
+      "position": "bottom",
+      "bottom_offset_px": 80,
+      "font": "Philosopher",
+      "font_size": 60,
+      "color": {
+        "r": 0,
+        "g": 0,
+        "b": 0,
+        "a": 1
+      },
+      "stroke_color": {
+        "r": 255,
+        "g": 255,
+        "b": 255,
+        "a": 0.9
+      },
+      "stroke_width": 2,
+      "shadow": true,
+      "glow": false,
+      "max_width": 768,
+      "animation": {
+        "fade_in": 0.08,
+        "fade_out": 0.08
+      }
+    },
+    {
+      "content": "an unusually high concentration of",
+      "start": 51.66,
+      "end": 54.28,
+      "position": "bottom",
+      "bottom_offset_px": 80,
+      "font": "Philosopher",
+      "font_size": 60,
+      "color": {
+        "r": 0,
+        "g": 0,
+        "b": 0,
+        "a": 1
+      },
+      "stroke_color": {
+        "r": 255,
+        "g": 255,
+        "b": 255,
+        "a": 0.9
+      },
+      "stroke_width": 2,
+      "shadow": true,
+      "glow": false,
+      "max_width": 768,
+      "animation": {
+        "fade_in": 0.08,
+        "fade_out": 0.08
+      }
+    },
+    {
+      "content": "iron. As you stand before",
+      "start": 54.415,
+      "end": 56.64,
+      "position": "bottom",
+      "bottom_offset_px": 80,
+      "font": "Philosopher",
+      "font_size": 60,
+      "color": {
+        "r": 0,
+        "g": 0,
+        "b": 0,
+        "a": 1
+      },
+      "stroke_color": {
+        "r": 255,
+        "g": 255,
+        "b": 255,
+        "a": 0.9
+      },
+      "stroke_width": 2,
+      "shadow": true,
+      "glow": false,
+      "max_width": 768,
+      "animation": {
+        "fade_in": 0.08,
+        "fade_out": 0.08
+      }
+    },
+    {
+      "content": "it, the contrast is jarring.",
+      "start": 56.64,
+      "end": 59.15,
+      "position": "bottom",
+      "bottom_offset_px": 80,
+      "font": "Philosopher",
+      "font_size": 60,
+      "color": {
+        "r": 0,
+        "g": 0,
+        "b": 0,
+        "a": 1
+      },
+      "stroke_color": {
+        "r": 255,
+        "g": 255,
+        "b": 255,
+        "a": 0.9
+      },
+      "stroke_width": 2,
+      "shadow": true,
+      "glow": false,
+      "max_width": 768,
+      "animation": {
+        "fade_in": 0.08,
+        "fade_out": 0.08
+      }
+    },
+    {
+      "content": "How does a shape of",
+      "start": 59.78,
+      "end": 61.02,
+      "position": "bottom",
+      "bottom_offset_px": 80,
+      "font": "Philosopher",
+      "font_size": 60,
+      "color": {
+        "r": 0,
+        "g": 0,
+        "b": 0,
+        "a": 1
+      },
+      "stroke_color": {
+        "r": 255,
+        "g": 255,
+        "b": 255,
+        "a": 0.9
+      },
+      "stroke_width": 2,
+      "shadow": true,
+      "glow": false,
+      "max_width": 768,
+      "animation": {
+        "fade_in": 0.08,
+        "fade_out": 0.08
+      }
+    },
+    {
+      "content": "such mathematical, near-perfect geometry come",
+      "start": 61.02,
+      "end": 65.16,
+      "position": "bottom",
+      "bottom_offset_px": 80,
+      "font": "Philosopher",
+      "font_size": 60,
+      "color": {
+        "r": 0,
+        "g": 0,
+        "b": 0,
+        "a": 1
+      },
+      "stroke_color": {
+        "r": 255,
+        "g": 255,
+        "b": 255,
+        "a": 0.9
+      },
+      "stroke_width": 2,
+      "shadow": true,
+      "glow": false,
+      "max_width": 768,
+      "animation": {
+        "fade_in": 0.08,
+        "fade_out": 0.08
+      }
+    },
+    {
+      "content": "to rest in the middle",
+      "start": 65.16,
+      "end": 66.5,
+      "position": "bottom",
+      "bottom_offset_px": 80,
+      "font": "Philosopher",
+      "font_size": 60,
+      "color": {
+        "r": 0,
+        "g": 0,
+        "b": 0,
+        "a": 1
+      },
+      "stroke_color": {
+        "r": 255,
+        "g": 255,
+        "b": 255,
+        "a": 0.9
+      },
+      "stroke_width": 2,
+      "shadow": true,
+      "glow": false,
+      "max_width": 768,
+      "animation": {
+        "fade_in": 0.08,
+        "fade_out": 0.08
+      }
+    },
+    {
+      "content": "of a wild, chaotic forest,",
+      "start": 66.5,
+      "end": 68.76,
+      "position": "bottom",
+      "bottom_offset_px": 80,
+      "font": "Philosopher",
+      "font_size": 60,
+      "color": {
+        "r": 0,
+        "g": 0,
+        "b": 0,
+        "a": 1
+      },
+      "stroke_color": {
+        "r": 255,
+        "g": 255,
+        "b": 255,
+        "a": 0.9
+      },
+      "stroke_width": 2,
+      "shadow": true,
+      "glow": false,
+      "max_width": 768,
+      "animation": {
+        "fade_in": 0.08,
+        "fade_out": 0.08
+      }
+    },
+    {
+      "content": "untouched by the straight lines",
+      "start": 69.338,
+      "end": 71.24,
+      "position": "bottom",
+      "bottom_offset_px": 80,
+      "font": "Philosopher",
+      "font_size": 60,
+      "color": {
+        "r": 0,
+        "g": 0,
+        "b": 0,
+        "a": 1
+      },
+      "stroke_color": {
+        "r": 255,
+        "g": 255,
+        "b": 255,
+        "a": 0.9
+      },
+      "stroke_width": 2,
+      "shadow": true,
+      "glow": false,
+      "max_width": 768,
+      "animation": {
+        "fade_in": 0.08,
+        "fade_out": 0.08
+      }
+    },
+    {
+      "content": "of modern engineering?",
+      "start": 71.24,
+      "end": 72.76,
+      "position": "bottom",
+      "bottom_offset_px": 80,
+      "font": "Philosopher",
+      "font_size": 60,
+      "color": {
+        "r": 0,
+        "g": 0,
+        "b": 0,
+        "a": 1
+      },
+      "stroke_color": {
+        "r": 255,
+        "g": 255,
+        "b": 255,
+        "a": 0.9
+      },
+      "stroke_width": 2,
+      "shadow": true,
+      "glow": false,
+      "max_width": 768,
+      "animation": {
+        "fade_in": 0.08,
+        "fade_out": 0.08
+      }
+    },
+    {
+      "content": "It feels deliberate, an intentional",
+      "start": 73.3,
+      "end": 75.839,
+      "position": "bottom",
+      "bottom_offset_px": 80,
+      "font": "Philosopher",
+      "font_size": 60,
+      "color": {
+        "r": 0,
+        "g": 0,
+        "b": 0,
+        "a": 1
+      },
+      "stroke_color": {
+        "r": 255,
+        "g": 255,
+        "b": 255,
+        "a": 0.9
+      },
+      "stroke_width": 2,
+      "shadow": true,
+      "glow": false,
+      "max_width": 768,
+      "animation": {
+        "fade_in": 0.08,
+        "fade_out": 0.08
+      }
+    },
+    {
+      "content": "monument left behind by someone—or",
+      "start": 75.995,
+      "end": 79.42,
+      "position": "bottom",
+      "bottom_offset_px": 80,
+      "font": "Philosopher",
+      "font_size": 60,
+      "color": {
+        "r": 0,
+        "g": 0,
+        "b": 0,
+        "a": 1
+      },
+      "stroke_color": {
+        "r": 255,
+        "g": 255,
+        "b": 255,
+        "a": 0.9
+      },
+      "stroke_width": 2,
+      "shadow": true,
+      "glow": false,
+      "max_width": 768,
+      "animation": {
+        "fade_in": 0.08,
+        "fade_out": 0.08
+      }
+    },
+    {
+      "content": "something. But who would—or could—have",
+      "start": 79.802,
+      "end": 83.64,
+      "position": "bottom",
+      "bottom_offset_px": 80,
+      "font": "Philosopher",
+      "font_size": 60,
+      "color": {
+        "r": 0,
+        "g": 0,
+        "b": 0,
+        "a": 1
+      },
+      "stroke_color": {
+        "r": 255,
+        "g": 255,
+        "b": 255,
+        "a": 0.9
+      },
+      "stroke_width": 2,
+      "shadow": true,
+      "glow": false,
+      "max_width": 768,
+      "animation": {
+        "fade_in": 0.08,
+        "fade_out": 0.08
+      }
+    },
+    {
+      "content": "crafted such a titan, and",
+      "start": 83.775,
+      "end": 85.88,
+      "position": "bottom",
+      "bottom_offset_px": 80,
+      "font": "Philosopher",
+      "font_size": 60,
+      "color": {
+        "r": 0,
+        "g": 0,
+        "b": 0,
+        "a": 1
+      },
+      "stroke_color": {
+        "r": 255,
+        "g": 255,
+        "b": 255,
+        "a": 0.9
+      },
+      "stroke_width": 2,
+      "shadow": true,
+      "glow": false,
+      "max_width": 768,
+      "animation": {
+        "fade_in": 0.08,
+        "fade_out": 0.08
+      }
+    },
+    {
+      "content": "for what purpose?",
+      "start": 85.88,
+      "end": 87.166,
+      "position": "bottom",
+      "bottom_offset_px": 80,
+      "font": "Philosopher",
+      "font_size": 60,
+      "color": {
+        "r": 0,
+        "g": 0,
+        "b": 0,
+        "a": 1
+      },
+      "stroke_color": {
+        "r": 255,
+        "g": 255,
+        "b": 255,
+        "a": 0.9
+      },
+      "stroke_width": 2,
+      "shadow": true,
+      "glow": false,
+      "max_width": 768,
+      "animation": {
+        "fade_in": 0.08,
+        "fade_out": 0.08
+      }
+    },
+    {
+      "content": "When researcher Semir Osmanagić first",
+      "start": 87.7,
+      "end": 94.56,
+      "position": "bottom",
+      "bottom_offset_px": 80,
+      "font": "Philosopher",
+      "font_size": 60,
+      "color": {
+        "r": 0,
+        "g": 0,
+        "b": 0,
+        "a": 1
+      },
+      "stroke_color": {
+        "r": 255,
+        "g": 255,
+        "b": 255,
+        "a": 0.9
+      },
+      "stroke_width": 2,
+      "shadow": true,
+      "glow": false,
+      "max_width": 768,
+      "animation": {
+        "fade_in": 0.08,
+        "fade_out": 0.08
+      }
+    },
+    {
+      "content": "examined this giant sphere, he",
+      "start": 95.1,
+      "end": 97.16,
+      "position": "bottom",
+      "bottom_offset_px": 80,
+      "font": "Philosopher",
+      "font_size": 60,
+      "color": {
+        "r": 0,
+        "g": 0,
+        "b": 0,
+        "a": 1
+      },
+      "stroke_color": {
+        "r": 255,
+        "g": 255,
+        "b": 255,
+        "a": 0.9
+      },
+      "stroke_width": 2,
+      "shadow": true,
+      "glow": false,
+      "max_width": 768,
+      "animation": {
+        "fade_in": 0.08,
+        "fade_out": 0.08
+      }
+    },
+    {
+      "content": "proposed a theory that sent",
+      "start": 97.285,
+      "end": 98.88,
+      "position": "bottom",
+      "bottom_offset_px": 80,
+      "font": "Philosopher",
+      "font_size": 60,
+      "color": {
+        "r": 0,
+        "g": 0,
+        "b": 0,
+        "a": 1
+      },
+      "stroke_color": {
+        "r": 255,
+        "g": 255,
+        "b": 255,
+        "a": 0.9
+      },
+      "stroke_width": 2,
+      "shadow": true,
+      "glow": false,
+      "max_width": 768,
+      "animation": {
+        "fade_in": 0.08,
+        "fade_out": 0.08
+      }
+    },
+    {
+      "content": "shockwaves through the archaeological community.",
+      "start": 99.042,
+      "end": 101.904,
+      "position": "bottom",
+      "bottom_offset_px": 80,
+      "font": "Philosopher",
+      "font_size": 60,
+      "color": {
+        "r": 0,
+        "g": 0,
+        "b": 0,
+        "a": 1
+      },
+      "stroke_color": {
+        "r": 255,
+        "g": 255,
+        "b": 255,
+        "a": 0.9
+      },
+      "stroke_width": 2,
+      "shadow": true,
+      "glow": false,
+      "max_width": 768,
+      "animation": {
+        "fade_in": 0.08,
+        "fade_out": 0.08
+      }
+    },
+    {
+      "content": "He argued that these stones",
+      "start": 102.56,
+      "end": 104.2,
+      "position": "bottom",
+      "bottom_offset_px": 80,
+      "font": "Philosopher",
+      "font_size": 60,
+      "color": {
+        "r": 0,
+        "g": 0,
+        "b": 0,
+        "a": 1
+      },
+      "stroke_color": {
+        "r": 255,
+        "g": 255,
+        "b": 255,
+        "a": 0.9
+      },
+      "stroke_width": 2,
+      "shadow": true,
+      "glow": false,
+      "max_width": 768,
+      "animation": {
+        "fade_in": 0.08,
+        "fade_out": 0.08
+      }
+    },
+    {
+      "content": "were not natural accidents, but",
+      "start": 104.2,
+      "end": 106.7,
+      "position": "bottom",
+      "bottom_offset_px": 80,
+      "font": "Philosopher",
+      "font_size": 60,
+      "color": {
+        "r": 0,
+        "g": 0,
+        "b": 0,
+        "a": 1
+      },
+      "stroke_color": {
+        "r": 255,
+        "g": 255,
+        "b": 255,
+        "a": 0.9
+      },
+      "stroke_width": 2,
+      "shadow": true,
+      "glow": false,
+      "max_width": 768,
+      "animation": {
+        "fade_in": 0.08,
+        "fade_out": 0.08
+      }
+    },
+    {
+      "content": "the handiwork of an advanced,",
+      "start": 106.7,
+      "end": 108.77,
+      "position": "bottom",
+      "bottom_offset_px": 80,
+      "font": "Philosopher",
+      "font_size": 60,
+      "color": {
+        "r": 0,
+        "g": 0,
+        "b": 0,
+        "a": 1
+      },
+      "stroke_color": {
+        "r": 255,
+        "g": 255,
+        "b": 255,
+        "a": 0.9
+      },
+      "stroke_width": 2,
+      "shadow": true,
+      "glow": false,
+      "max_width": 768,
+      "animation": {
+        "fade_in": 0.08,
+        "fade_out": 0.08
+      }
+    },
+    {
+      "content": "forgotten civilization that thrived in",
+      "start": 108.88,
+      "end": 111.42,
+      "position": "bottom",
+      "bottom_offset_px": 80,
+      "font": "Philosopher",
+      "font_size": 60,
+      "color": {
+        "r": 0,
+        "g": 0,
+        "b": 0,
+        "a": 1
+      },
+      "stroke_color": {
+        "r": 255,
+        "g": 255,
+        "b": 255,
+        "a": 0.9
+      },
+      "stroke_width": 2,
+      "shadow": true,
+      "glow": false,
+      "max_width": 768,
+      "animation": {
+        "fade_in": 0.08,
+        "fade_out": 0.08
+      }
+    },
+    {
+      "content": "the region thousands of years",
+      "start": 111.42,
+      "end": 113.02,
+      "position": "bottom",
+      "bottom_offset_px": 80,
+      "font": "Philosopher",
+      "font_size": 60,
+      "color": {
+        "r": 0,
+        "g": 0,
+        "b": 0,
+        "a": 1
+      },
+      "stroke_color": {
+        "r": 255,
+        "g": 255,
+        "b": 255,
+        "a": 0.9
+      },
+      "stroke_width": 2,
+      "shadow": true,
+      "glow": false,
+      "max_width": 768,
+      "animation": {
+        "fade_in": 0.08,
+        "fade_out": 0.08
+      }
+    },
+    {
+      "content": "ago—the same builders he claims",
+      "start": 113.02,
+      "end": 115.6,
+      "position": "bottom",
+      "bottom_offset_px": 80,
+      "font": "Philosopher",
+      "font_size": 60,
+      "color": {
+        "r": 0,
+        "g": 0,
+        "b": 0,
+        "a": 1
+      },
+      "stroke_color": {
+        "r": 255,
+        "g": 255,
+        "b": 255,
+        "a": 0.9
+      },
+      "stroke_width": 2,
+      "shadow": true,
+      "glow": false,
+      "max_width": 768,
+      "animation": {
+        "fade_in": 0.08,
+        "fade_out": 0.08
+      }
+    },
+    {
+      "content": "constructed the controversial Bosnian pyramids",
+      "start": 115.74,
+      "end": 118.7,
+      "position": "bottom",
+      "bottom_offset_px": 80,
+      "font": "Philosopher",
+      "font_size": 60,
+      "color": {
+        "r": 0,
+        "g": 0,
+        "b": 0,
+        "a": 1
+      },
+      "stroke_color": {
+        "r": 255,
+        "g": 255,
+        "b": 255,
+        "a": 0.9
+      },
+      "stroke_width": 2,
+      "shadow": true,
+      "glow": false,
+      "max_width": 768,
+      "animation": {
+        "fade_in": 0.08,
+        "fade_out": 0.08
+      }
+    },
+    {
+      "content": "nearby. In this alternative view,",
+      "start": 118.7,
+      "end": 121.369,
+      "position": "bottom",
+      "bottom_offset_px": 80,
+      "font": "Philosopher",
+      "font_size": 60,
+      "color": {
+        "r": 0,
+        "g": 0,
+        "b": 0,
+        "a": 1
+      },
+      "stroke_color": {
+        "r": 255,
+        "g": 255,
+        "b": 255,
+        "a": 0.9
+      },
+      "stroke_width": 2,
+      "shadow": true,
+      "glow": false,
+      "max_width": 768,
+      "animation": {
+        "fade_in": 0.08,
+        "fade_out": 0.08
+      }
+    },
+    {
+      "content": "the spheres were not mere",
+      "start": 121.9,
+      "end": 123.26,
+      "position": "bottom",
+      "bottom_offset_px": 80,
+      "font": "Philosopher",
+      "font_size": 60,
+      "color": {
+        "r": 0,
+        "g": 0,
+        "b": 0,
+        "a": 1
+      },
+      "stroke_color": {
+        "r": 255,
+        "g": 255,
+        "b": 255,
+        "a": 0.9
+      },
+      "stroke_width": 2,
+      "shadow": true,
+      "glow": false,
+      "max_width": 768,
+      "animation": {
+        "fade_in": 0.08,
+        "fade_out": 0.08
+      }
+    },
+    {
+      "content": "ornaments; they were focal points",
+      "start": 123.26,
+      "end": 125.62,
+      "position": "bottom",
+      "bottom_offset_px": 80,
+      "font": "Philosopher",
+      "font_size": 60,
+      "color": {
+        "r": 0,
+        "g": 0,
+        "b": 0,
+        "a": 1
+      },
+      "stroke_color": {
+        "r": 255,
+        "g": 255,
+        "b": 255,
+        "a": 0.9
+      },
+      "stroke_width": 2,
+      "shadow": true,
+      "glow": false,
+      "max_width": 768,
+      "animation": {
+        "fade_in": 0.08,
+        "fade_out": 0.08
+      }
+    },
+    {
+      "content": "of an ancient energy grid,",
+      "start": 125.62,
+      "end": 127.15,
+      "position": "bottom",
+      "bottom_offset_px": 80,
+      "font": "Philosopher",
+      "font_size": 60,
+      "color": {
+        "r": 0,
+        "g": 0,
+        "b": 0,
+        "a": 1
+      },
+      "stroke_color": {
+        "r": 255,
+        "g": 255,
+        "b": 255,
+        "a": 0.9
+      },
+      "stroke_width": 2,
+      "shadow": true,
+      "glow": false,
+      "max_width": 768,
+      "animation": {
+        "fade_in": 0.08,
+        "fade_out": 0.08
+      }
+    },
+    {
+      "content": "designed to transmit or amplify",
+      "start": 128.2,
+      "end": 130.172,
+      "position": "bottom",
+      "bottom_offset_px": 80,
+      "font": "Philosopher",
+      "font_size": 60,
+      "color": {
+        "r": 0,
+        "g": 0,
+        "b": 0,
+        "a": 1
+      },
+      "stroke_color": {
+        "r": 255,
+        "g": 255,
+        "b": 255,
+        "a": 0.9
+      },
+      "stroke_width": 2,
+      "shadow": true,
+      "glow": false,
+      "max_width": 768,
+      "animation": {
+        "fade_in": 0.08,
+        "fade_out": 0.08
+      }
+    },
+    {
+      "content": "terrestrial forces. This sense of",
+      "start": 130.3,
+      "end": 133.14,
+      "position": "bottom",
+      "bottom_offset_px": 80,
+      "font": "Philosopher",
+      "font_size": 60,
+      "color": {
+        "r": 0,
+        "g": 0,
+        "b": 0,
+        "a": 1
+      },
+      "stroke_color": {
+        "r": 255,
+        "g": 255,
+        "b": 255,
+        "a": 0.9
+      },
+      "stroke_width": 2,
+      "shadow": true,
+      "glow": false,
+      "max_width": 768,
+      "animation": {
+        "fade_in": 0.08,
+        "fade_out": 0.08
+      }
+    },
+    {
+      "content": "mystery is nothing new to",
+      "start": 133.14,
+      "end": 134.96,
+      "position": "bottom",
+      "bottom_offset_px": 80,
+      "font": "Philosopher",
+      "font_size": 60,
+      "color": {
+        "r": 0,
+        "g": 0,
+        "b": 0,
+        "a": 1
+      },
+      "stroke_color": {
+        "r": 255,
+        "g": 255,
+        "b": 255,
+        "a": 0.9
+      },
+      "stroke_width": 2,
+      "shadow": true,
+      "glow": false,
+      "max_width": 768,
+      "animation": {
+        "fade_in": 0.08,
+        "fade_out": 0.08
+      }
+    },
+    {
+      "content": "the locals. For generations, legends",
+      "start": 134.96,
+      "end": 137.86,
+      "position": "bottom",
+      "bottom_offset_px": 80,
+      "font": "Philosopher",
+      "font_size": 60,
+      "color": {
+        "r": 0,
+        "g": 0,
+        "b": 0,
+        "a": 1
+      },
+      "stroke_color": {
+        "r": 255,
+        "g": 255,
+        "b": 255,
+        "a": 0.9
+      },
+      "stroke_width": 2,
+      "shadow": true,
+      "glow": false,
+      "max_width": 768,
+      "animation": {
+        "fade_in": 0.08,
+        "fade_out": 0.08
+      }
+    },
+    {
+      "content": "whispered that these massive stones",
+      "start": 138.04,
+      "end": 140.02,
+      "position": "bottom",
+      "bottom_offset_px": 80,
+      "font": "Philosopher",
+      "font_size": 60,
+      "color": {
+        "r": 0,
+        "g": 0,
+        "b": 0,
+        "a": 1
+      },
+      "stroke_color": {
+        "r": 255,
+        "g": 255,
+        "b": 255,
+        "a": 0.9
+      },
+      "stroke_width": 2,
+      "shadow": true,
+      "glow": false,
+      "max_width": 768,
+      "animation": {
+        "fade_in": 0.08,
+        "fade_out": 0.08
+      }
+    },
+    {
+      "content": "held secret treasures hidden deep",
+      "start": 140.5,
+      "end": 142.74,
+      "position": "bottom",
+      "bottom_offset_px": 80,
+      "font": "Philosopher",
+      "font_size": 60,
+      "color": {
+        "r": 0,
+        "g": 0,
+        "b": 0,
+        "a": 1
+      },
+      "stroke_color": {
+        "r": 255,
+        "g": 255,
+        "b": 255,
+        "a": 0.9
+      },
+      "stroke_width": 2,
+      "shadow": true,
+      "glow": false,
+      "max_width": 768,
+      "animation": {
+        "fade_in": 0.08,
+        "fade_out": 0.08
+      }
+    },
+    {
+      "content": "inside their cores, a myth",
+      "start": 142.74,
+      "end": 144.92,
+      "position": "bottom",
+      "bottom_offset_px": 80,
+      "font": "Philosopher",
+      "font_size": 60,
+      "color": {
+        "r": 0,
+        "g": 0,
+        "b": 0,
+        "a": 1
+      },
+      "stroke_color": {
+        "r": 255,
+        "g": 255,
+        "b": 255,
+        "a": 0.9
+      },
+      "stroke_width": 2,
+      "shadow": true,
+      "glow": false,
+      "max_width": 768,
+      "animation": {
+        "fade_in": 0.08,
+        "fade_out": 0.08
+      }
+    },
+    {
+      "content": "that tragically drove treasure hunters",
+      "start": 144.92,
+      "end": 147.1,
+      "position": "bottom",
+      "bottom_offset_px": 80,
+      "font": "Philosopher",
+      "font_size": 60,
+      "color": {
+        "r": 0,
+        "g": 0,
+        "b": 0,
+        "a": 1
+      },
+      "stroke_color": {
+        "r": 255,
+        "g": 255,
+        "b": 255,
+        "a": 0.9
+      },
+      "stroke_width": 2,
+      "shadow": true,
+      "glow": false,
+      "max_width": 768,
+      "animation": {
+        "fade_in": 0.08,
+        "fade_out": 0.08
+      }
+    },
+    {
+      "content": "to blast several of them",
+      "start": 147.22,
+      "end": 148.96,
+      "position": "bottom",
+      "bottom_offset_px": 80,
+      "font": "Philosopher",
+      "font_size": 60,
+      "color": {
+        "r": 0,
+        "g": 0,
+        "b": 0,
+        "a": 1
+      },
+      "stroke_color": {
+        "r": 255,
+        "g": 255,
+        "b": 255,
+        "a": 0.9
+      },
+      "stroke_width": 2,
+      "shadow": true,
+      "glow": false,
+      "max_width": 768,
+      "animation": {
+        "fade_in": 0.08,
+        "fade_out": 0.08
+      }
+    },
+    {
+      "content": "apart with dynamite, finding only",
+      "start": 148.96,
+      "end": 151.38,
+      "position": "bottom",
+      "bottom_offset_px": 80,
+      "font": "Philosopher",
+      "font_size": 60,
+      "color": {
+        "r": 0,
+        "g": 0,
+        "b": 0,
+        "a": 1
+      },
+      "stroke_color": {
+        "r": 255,
+        "g": 255,
+        "b": 255,
+        "a": 0.9
+      },
+      "stroke_width": 2,
+      "shadow": true,
+      "glow": false,
+      "max_width": 768,
+      "animation": {
+        "fade_in": 0.08,
+        "fade_out": 0.08
+      }
+    },
+    {
+      "content": "solid rock. Yet, similar spheres",
+      "start": 151.38,
+      "end": 154.42,
+      "position": "bottom",
+      "bottom_offset_px": 80,
+      "font": "Philosopher",
+      "font_size": 60,
+      "color": {
+        "r": 0,
+        "g": 0,
+        "b": 0,
+        "a": 1
+      },
+      "stroke_color": {
+        "r": 255,
+        "g": 255,
+        "b": 255,
+        "a": 0.9
+      },
+      "stroke_width": 2,
+      "shadow": true,
+      "glow": false,
+      "max_width": 768,
+      "animation": {
+        "fade_in": 0.08,
+        "fade_out": 0.08
+      }
+    },
+    {
+      "content": "appear across the globe, from",
+      "start": 154.795,
+      "end": 156.74,
+      "position": "bottom",
+      "bottom_offset_px": 80,
+      "font": "Philosopher",
+      "font_size": 60,
+      "color": {
+        "r": 0,
+        "g": 0,
+        "b": 0,
+        "a": 1
+      },
+      "stroke_color": {
+        "r": 255,
+        "g": 255,
+        "b": 255,
+        "a": 0.9
+      },
+      "stroke_width": 2,
+      "shadow": true,
+      "glow": false,
+      "max_width": 768,
+      "animation": {
+        "fade_in": 0.08,
+        "fade_out": 0.08
+      }
+    },
+    {
+      "content": "the jungles of Costa Rica",
+      "start": 156.74,
+      "end": 158.24,
+      "position": "bottom",
+      "bottom_offset_px": 80,
+      "font": "Philosopher",
+      "font_size": 60,
+      "color": {
+        "r": 0,
+        "g": 0,
+        "b": 0,
+        "a": 1
+      },
+      "stroke_color": {
+        "r": 255,
+        "g": 255,
+        "b": 255,
+        "a": 0.9
+      },
+      "stroke_width": 2,
+      "shadow": true,
+      "glow": false,
+      "max_width": 768,
+      "animation": {
+        "fade_in": 0.08,
+        "fade_out": 0.08
+      }
+    },
+    {
+      "content": "to the remote islands of",
+      "start": 158.24,
+      "end": 159.92,
+      "position": "bottom",
+      "bottom_offset_px": 80,
+      "font": "Philosopher",
+      "font_size": 60,
+      "color": {
+        "r": 0,
+        "g": 0,
+        "b": 0,
+        "a": 1
+      },
+      "stroke_color": {
+        "r": 255,
+        "g": 255,
+        "b": 255,
+        "a": 0.9
+      },
+      "stroke_width": 2,
+      "shadow": true,
+      "glow": false,
+      "max_width": 768,
+      "animation": {
+        "fade_in": 0.08,
+        "fade_out": 0.08
+      }
+    },
+    {
+      "content": "New Zealand, hinting at a",
+      "start": 159.92,
+      "end": 161.68,
+      "position": "bottom",
+      "bottom_offset_px": 80,
+      "font": "Philosopher",
+      "font_size": 60,
+      "color": {
+        "r": 0,
+        "g": 0,
+        "b": 0,
+        "a": 1
+      },
+      "stroke_color": {
+        "r": 255,
+        "g": 255,
+        "b": 255,
+        "a": 0.9
+      },
+      "stroke_width": 2,
+      "shadow": true,
+      "glow": false,
+      "max_width": 768,
+      "animation": {
+        "fade_in": 0.08,
+        "fade_out": 0.08
+      }
+    },
+    {
+      "content": "potential prehistoric network.",
+      "start": 161.96,
+      "end": 163.811,
+      "position": "bottom",
+      "bottom_offset_px": 80,
+      "font": "Philosopher",
+      "font_size": 60,
+      "color": {
+        "r": 0,
+        "g": 0,
+        "b": 0,
+        "a": 1
+      },
+      "stroke_color": {
+        "r": 255,
+        "g": 255,
+        "b": 255,
+        "a": 0.9
+      },
+      "stroke_width": 2,
+      "shadow": true,
+      "glow": false,
+      "max_width": 768,
+      "animation": {
+        "fade_in": 0.08,
+        "fade_out": 0.08
+      }
+    },
+    {
+      "content": "It is a captivating vision",
+      "start": 164.5,
+      "end": 166.02,
+      "position": "bottom",
+      "bottom_offset_px": 80,
+      "font": "Philosopher",
+      "font_size": 60,
+      "color": {
+        "r": 0,
+        "g": 0,
+        "b": 0,
+        "a": 1
+      },
+      "stroke_color": {
+        "r": 255,
+        "g": 255,
+        "b": 255,
+        "a": 0.9
+      },
+      "stroke_width": 2,
+      "shadow": true,
+      "glow": false,
+      "max_width": 768,
+      "animation": {
+        "fade_in": 0.08,
+        "fade_out": 0.08
+      }
+    },
+    {
+      "content": "of our past.",
+      "start": 166.02,
+      "end": 166.742,
+      "position": "bottom",
+      "bottom_offset_px": 80,
+      "font": "Philosopher",
+      "font_size": 60,
+      "color": {
+        "r": 0,
+        "g": 0,
+        "b": 0,
+        "a": 1
+      },
+      "stroke_color": {
+        "r": 255,
+        "g": 255,
+        "b": 255,
+        "a": 0.9
+      },
+      "stroke_width": 2,
+      "shadow": true,
+      "glow": false,
+      "max_width": 768,
+      "animation": {
+        "fade_in": 0.08,
+        "fade_out": 0.08
+      }
+    },
+    {
+      "content": "But when geologists arrived with",
+      "start": 167.46,
+      "end": 169.42,
+      "position": "bottom",
+      "bottom_offset_px": 80,
+      "font": "Philosopher",
+      "font_size": 60,
+      "color": {
+        "r": 0,
+        "g": 0,
+        "b": 0,
+        "a": 1
+      },
+      "stroke_color": {
+        "r": 255,
+        "g": 255,
+        "b": 255,
+        "a": 0.9
+      },
+      "stroke_width": 2,
+      "shadow": true,
+      "glow": false,
+      "max_width": 768,
+      "animation": {
+        "fade_in": 0.08,
+        "fade_out": 0.08
+      }
+    },
+    {
+      "content": "hammers and core drills, they",
+      "start": 169.555,
+      "end": 171.52,
+      "position": "bottom",
+      "bottom_offset_px": 80,
+      "font": "Philosopher",
+      "font_size": 60,
+      "color": {
+        "r": 0,
+        "g": 0,
+        "b": 0,
+        "a": 1
+      },
+      "stroke_color": {
+        "r": 255,
+        "g": 255,
+        "b": 255,
+        "a": 0.9
+      },
+      "stroke_width": 2,
+      "shadow": true,
+      "glow": false,
+      "max_width": 768,
+      "animation": {
+        "fade_in": 0.08,
+        "fade_out": 0.08
+      }
+    },
+    {
+      "content": "saw a completely different kind",
+      "start": 171.52,
+      "end": 173.58,
+      "position": "bottom",
+      "bottom_offset_px": 80,
+      "font": "Philosopher",
+      "font_size": 60,
+      "color": {
+        "r": 0,
+        "g": 0,
+        "b": 0,
+        "a": 1
+      },
+      "stroke_color": {
+        "r": 255,
+        "g": 255,
+        "b": 255,
+        "a": 0.9
+      },
+      "stroke_width": 2,
+      "shadow": true,
+      "glow": false,
+      "max_width": 768,
+      "animation": {
+        "fade_in": 0.08,
+        "fade_out": 0.08
+      }
+    },
+    {
+      "content": "of magic at work.",
+      "start": 173.58,
+      "end": 174.52,
+      "position": "bottom",
+      "bottom_offset_px": 80,
+      "font": "Philosopher",
+      "font_size": 60,
+      "color": {
+        "r": 0,
+        "g": 0,
+        "b": 0,
+        "a": 1
+      },
+      "stroke_color": {
+        "r": 255,
+        "g": 255,
+        "b": 255,
+        "a": 0.9
+      },
+      "stroke_width": 2,
+      "shadow": true,
+      "glow": false,
+      "max_width": 768,
+      "animation": {
+        "fade_in": 0.08,
+        "fade_out": 0.08
+      }
+    },
+    {
+      "content": "To mainstream scientists, the explanation",
+      "start": 177.16,
+      "end": 182.54,
+      "position": "bottom",
+      "bottom_offset_px": 80,
+      "font": "Philosopher",
+      "font_size": 60,
+      "color": {
+        "r": 0,
+        "g": 0,
+        "b": 0,
+        "a": 1
+      },
+      "stroke_color": {
+        "r": 255,
+        "g": 255,
+        "b": 255,
+        "a": 0.9
+      },
+      "stroke_width": 2,
+      "shadow": true,
+      "glow": false,
+      "max_width": 768,
+      "animation": {
+        "fade_in": 0.08,
+        "fade_out": 0.08
+      }
+    },
+    {
+      "content": "for the Podubravlje sphere is",
+      "start": 182.87,
+      "end": 184.6,
+      "position": "bottom",
+      "bottom_offset_px": 80,
+      "font": "Philosopher",
+      "font_size": 60,
+      "color": {
+        "r": 0,
+        "g": 0,
+        "b": 0,
+        "a": 1
+      },
+      "stroke_color": {
+        "r": 255,
+        "g": 255,
+        "b": 255,
+        "a": 0.9
+      },
+      "stroke_width": 2,
+      "shadow": true,
+      "glow": false,
+      "max_width": 768,
+      "animation": {
+        "fade_in": 0.08,
+        "fade_out": 0.08
+      }
+    },
+    {
+      "content": "no less extraordinary, though it",
+      "start": 184.6,
+      "end": 186.98,
+      "position": "bottom",
+      "bottom_offset_px": 80,
+      "font": "Philosopher",
+      "font_size": 60,
+      "color": {
+        "r": 0,
+        "g": 0,
+        "b": 0,
+        "a": 1
+      },
+      "stroke_color": {
+        "r": 255,
+        "g": 255,
+        "b": 255,
+        "a": 0.9
+      },
+      "stroke_width": 2,
+      "shadow": true,
+      "glow": false,
+      "max_width": 768,
+      "animation": {
+        "fade_in": 0.08,
+        "fade_out": 0.08
+      }
+    },
+    {
+      "content": "requires no ancient builders.",
+      "start": 187.11,
+      "end": 188.859,
+      "position": "bottom",
+      "bottom_offset_px": 80,
+      "font": "Philosopher",
+      "font_size": 60,
+      "color": {
+        "r": 0,
+        "g": 0,
+        "b": 0,
+        "a": 1
+      },
+      "stroke_color": {
+        "r": 255,
+        "g": 255,
+        "b": 255,
+        "a": 0.9
+      },
+      "stroke_width": 2,
+      "shadow": true,
+      "glow": false,
+      "max_width": 768,
+      "animation": {
+        "fade_in": 0.08,
+        "fade_out": 0.08
+      }
+    },
+    {
+      "content": "Geologists identify these objects as",
+      "start": 189.995,
+      "end": 192.32,
+      "position": "bottom",
+      "bottom_offset_px": 80,
+      "font": "Philosopher",
+      "font_size": 60,
+      "color": {
+        "r": 0,
+        "g": 0,
+        "b": 0,
+        "a": 1
+      },
+      "stroke_color": {
+        "r": 255,
+        "g": 255,
+        "b": 255,
+        "a": 0.9
+      },
+      "stroke_width": 2,
+      "shadow": true,
+      "glow": false,
+      "max_width": 768,
+      "animation": {
+        "fade_in": 0.08,
+        "fade_out": 0.08
+      }
+    },
+    {
+      "content": "natural spherical concretions, formed deep",
+      "start": 192.48,
+      "end": 195.706,
+      "position": "bottom",
+      "bottom_offset_px": 80,
+      "font": "Philosopher",
+      "font_size": 60,
+      "color": {
+        "r": 0,
+        "g": 0,
+        "b": 0,
+        "a": 1
+      },
+      "stroke_color": {
+        "r": 255,
+        "g": 255,
+        "b": 255,
+        "a": 0.9
+      },
+      "stroke_width": 2,
+      "shadow": true,
+      "glow": false,
+      "max_width": 768,
+      "animation": {
+        "fade_in": 0.08,
+        "fade_out": 0.08
+      }
+    },
+    {
+      "content": "underground millions of years ago.",
+      "start": 195.835,
+      "end": 197.948,
+      "position": "bottom",
+      "bottom_offset_px": 80,
+      "font": "Philosopher",
+      "font_size": 60,
+      "color": {
+        "r": 0,
+        "g": 0,
+        "b": 0,
+        "a": 1
+      },
+      "stroke_color": {
+        "r": 255,
+        "g": 255,
+        "b": 255,
+        "a": 0.9
+      },
+      "stroke_width": 2,
+      "shadow": true,
+      "glow": false,
+      "max_width": 768,
+      "animation": {
+        "fade_in": 0.08,
+        "fade_out": 0.08
+      }
+    },
+    {
+      "content": "The process is a slow,",
+      "start": 198.68,
+      "end": 200.505,
+      "position": "bottom",
+      "bottom_offset_px": 80,
+      "font": "Philosopher",
+      "font_size": 60,
+      "color": {
+        "r": 0,
+        "g": 0,
+        "b": 0,
+        "a": 1
+      },
+      "stroke_color": {
+        "r": 255,
+        "g": 255,
+        "b": 255,
+        "a": 0.9
+      },
+      "stroke_width": 2,
+      "shadow": true,
+      "glow": false,
+      "max_width": 768,
+      "animation": {
+        "fade_in": 0.08,
+        "fade_out": 0.08
+      }
+    },
+    {
+      "content": "chemical alchemy. Within ancient sedimentary",
+      "start": 200.62,
+      "end": 203.765,
+      "position": "bottom",
+      "bottom_offset_px": 80,
+      "font": "Philosopher",
+      "font_size": 60,
+      "color": {
+        "r": 0,
+        "g": 0,
+        "b": 0,
+        "a": 1
+      },
+      "stroke_color": {
+        "r": 255,
+        "g": 255,
+        "b": 255,
+        "a": 0.9
+      },
+      "stroke_width": 2,
+      "shadow": true,
+      "glow": false,
+      "max_width": 768,
+      "animation": {
+        "fade_in": 0.08,
+        "fade_out": 0.08
+      }
+    },
+    {
+      "content": "layers, mineral-rich waters slowly deposit",
+      "start": 203.96,
+      "end": 207.14,
+      "position": "bottom",
+      "bottom_offset_px": 80,
+      "font": "Philosopher",
+      "font_size": 60,
+      "color": {
+        "r": 0,
+        "g": 0,
+        "b": 0,
+        "a": 1
+      },
+      "stroke_color": {
+        "r": 255,
+        "g": 255,
+        "b": 255,
+        "a": 0.9
+      },
+      "stroke_width": 2,
+      "shadow": true,
+      "glow": false,
+      "max_width": 768,
+      "animation": {
+        "fade_in": 0.08,
+        "fade_out": 0.08
+      }
+    },
+    {
+      "content": "cement—often calcite or iron oxide—around",
+      "start": 207.14,
+      "end": 210.98,
+      "position": "bottom",
+      "bottom_offset_px": 80,
+      "font": "Philosopher",
+      "font_size": 60,
+      "color": {
+        "r": 0,
+        "g": 0,
+        "b": 0,
+        "a": 1
+      },
+      "stroke_color": {
+        "r": 255,
+        "g": 255,
+        "b": 255,
+        "a": 0.9
+      },
+      "stroke_width": 2,
+      "shadow": true,
+      "glow": false,
+      "max_width": 768,
+      "animation": {
+        "fade_in": 0.08,
+        "fade_out": 0.08
+      }
+    },
+    {
+      "content": "a tiny organic nucleus, like",
+      "start": 210.98,
+      "end": 213.64,
+      "position": "bottom",
+      "bottom_offset_px": 80,
+      "font": "Philosopher",
+      "font_size": 60,
+      "color": {
+        "r": 0,
+        "g": 0,
+        "b": 0,
+        "a": 1
+      },
+      "stroke_color": {
+        "r": 255,
+        "g": 255,
+        "b": 255,
+        "a": 0.9
+      },
+      "stroke_width": 2,
+      "shadow": true,
+      "glow": false,
+      "max_width": 768,
+      "animation": {
+        "fade_in": 0.08,
+        "fade_out": 0.08
+      }
+    },
+    {
+      "content": "a shell or a leaf.",
+      "start": 213.64,
+      "end": 214.82,
+      "position": "bottom",
+      "bottom_offset_px": 80,
+      "font": "Philosopher",
+      "font_size": 60,
+      "color": {
+        "r": 0,
+        "g": 0,
+        "b": 0,
+        "a": 1
+      },
+      "stroke_color": {
+        "r": 255,
+        "g": 255,
+        "b": 255,
+        "a": 0.9
+      },
+      "stroke_width": 2,
+      "shadow": true,
+      "glow": false,
+      "max_width": 768,
+      "animation": {
+        "fade_in": 0.08,
+        "fade_out": 0.08
+      }
+    },
+    {
+      "content": "Over immense spans of geological",
+      "start": 215.92,
+      "end": 217.844,
+      "position": "bottom",
+      "bottom_offset_px": 80,
+      "font": "Philosopher",
+      "font_size": 60,
+      "color": {
+        "r": 0,
+        "g": 0,
+        "b": 0,
+        "a": 1
+      },
+      "stroke_color": {
+        "r": 255,
+        "g": 255,
+        "b": 255,
+        "a": 0.9
+      },
+      "stroke_width": 2,
+      "shadow": true,
+      "glow": false,
+      "max_width": 768,
+      "animation": {
+        "fade_in": 0.08,
+        "fade_out": 0.08
+      }
+    },
+    {
+      "content": "time, this cement precipitates outward",
+      "start": 218.255,
+      "end": 220.76,
+      "position": "bottom",
+      "bottom_offset_px": 80,
+      "font": "Philosopher",
+      "font_size": 60,
+      "color": {
+        "r": 0,
+        "g": 0,
+        "b": 0,
+        "a": 1
+      },
+      "stroke_color": {
+        "r": 255,
+        "g": 255,
+        "b": 255,
+        "a": 0.9
+      },
+      "stroke_width": 2,
+      "shadow": true,
+      "glow": false,
+      "max_width": 768,
+      "animation": {
+        "fade_in": 0.08,
+        "fade_out": 0.08
+      }
+    },
+    {
+      "content": "in even, concentric layers, growing",
+      "start": 220.76,
+      "end": 223.66,
+      "position": "bottom",
+      "bottom_offset_px": 80,
+      "font": "Philosopher",
+      "font_size": 60,
+      "color": {
+        "r": 0,
+        "g": 0,
+        "b": 0,
+        "a": 1
+      },
+      "stroke_color": {
+        "r": 255,
+        "g": 255,
+        "b": 255,
+        "a": 0.9
+      },
+      "stroke_width": 2,
+      "shadow": true,
+      "glow": false,
+      "max_width": 768,
+      "animation": {
+        "fade_in": 0.08,
+        "fade_out": 0.08
+      }
+    },
+    {
+      "content": "larger and harder than the",
+      "start": 223.99,
+      "end": 225.34,
+      "position": "bottom",
+      "bottom_offset_px": 80,
+      "font": "Philosopher",
+      "font_size": 60,
+      "color": {
+        "r": 0,
+        "g": 0,
+        "b": 0,
+        "a": 1
+      },
+      "stroke_color": {
+        "r": 255,
+        "g": 255,
+        "b": 255,
+        "a": 0.9
+      },
+      "stroke_width": 2,
+      "shadow": true,
+      "glow": false,
+      "max_width": 768,
+      "animation": {
+        "fade_in": 0.08,
+        "fade_out": 0.08
+      }
+    },
+    {
+      "content": "surrounding rock. Eventually, as wind,",
+      "start": 225.34,
+      "end": 228.701,
+      "position": "bottom",
+      "bottom_offset_px": 80,
+      "font": "Philosopher",
+      "font_size": 60,
+      "color": {
+        "r": 0,
+        "g": 0,
+        "b": 0,
+        "a": 1
+      },
+      "stroke_color": {
+        "r": 255,
+        "g": 255,
+        "b": 255,
+        "a": 0.9
+      },
+      "stroke_width": 2,
+      "shadow": true,
+      "glow": false,
+      "max_width": 768,
+      "animation": {
+        "fade_in": 0.08,
+        "fade_out": 0.08
+      }
+    },
+    {
+      "content": "rain, and rivers erode the",
+      "start": 228.875,
+      "end": 230.56,
+      "position": "bottom",
+      "bottom_offset_px": 80,
+      "font": "Philosopher",
+      "font_size": 60,
+      "color": {
+        "r": 0,
+        "g": 0,
+        "b": 0,
+        "a": 1
+      },
+      "stroke_color": {
+        "r": 255,
+        "g": 255,
+        "b": 255,
+        "a": 0.9
+      },
+      "stroke_width": 2,
+      "shadow": true,
+      "glow": false,
+      "max_width": 768,
+      "animation": {
+        "fade_in": 0.08,
+        "fade_out": 0.08
+      }
+    },
+    {
+      "content": "softer landscape away, these incredibly",
+      "start": 230.56,
+      "end": 233.38,
+      "position": "bottom",
+      "bottom_offset_px": 80,
+      "font": "Philosopher",
+      "font_size": 60,
+      "color": {
+        "r": 0,
+        "g": 0,
+        "b": 0,
+        "a": 1
+      },
+      "stroke_color": {
+        "r": 255,
+        "g": 255,
+        "b": 255,
+        "a": 0.9
+      },
+      "stroke_width": 2,
+      "shadow": true,
+      "glow": false,
+      "max_width": 768,
+      "animation": {
+        "fade_in": 0.08,
+        "fade_out": 0.08
+      }
+    },
+    {
+      "content": "durable spheres are left exposed,",
+      "start": 233.8,
+      "end": 235.88,
+      "position": "bottom",
+      "bottom_offset_px": 80,
+      "font": "Philosopher",
+      "font_size": 60,
+      "color": {
+        "r": 0,
+        "g": 0,
+        "b": 0,
+        "a": 1
+      },
+      "stroke_color": {
+        "r": 255,
+        "g": 255,
+        "b": 255,
+        "a": 0.9
+      },
+      "stroke_width": 2,
+      "shadow": true,
+      "glow": false,
+      "max_width": 768,
+      "animation": {
+        "fade_in": 0.08,
+        "fade_out": 0.08
+      }
+    },
+    {
+      "content": "sitting on the forest floor",
+      "start": 236.48,
+      "end": 237.66,
+      "position": "bottom",
+      "bottom_offset_px": 80,
+      "font": "Philosopher",
+      "font_size": 60,
+      "color": {
+        "r": 0,
+        "g": 0,
+        "b": 0,
+        "a": 1
+      },
+      "stroke_color": {
+        "r": 255,
+        "g": 255,
+        "b": 255,
+        "a": 0.9
+      },
+      "stroke_width": 2,
+      "shadow": true,
+      "glow": false,
+      "max_width": 768,
+      "animation": {
+        "fade_in": 0.08,
+        "fade_out": 0.08
+      }
+    },
+    {
+      "content": "as if dropped from the",
+      "start": 237.66,
+      "end": 239.06,
+      "position": "bottom",
+      "bottom_offset_px": 80,
+      "font": "Philosopher",
+      "font_size": 60,
+      "color": {
+        "r": 0,
+        "g": 0,
+        "b": 0,
+        "a": 1
+      },
+      "stroke_color": {
+        "r": 255,
+        "g": 255,
+        "b": 255,
+        "a": 0.9
+      },
+      "stroke_width": 2,
+      "shadow": true,
+      "glow": false,
+      "max_width": 768,
+      "animation": {
+        "fade_in": 0.08,
+        "fade_out": 0.08
+      }
+    },
+    {
+      "content": "sky. Mainstream archaeologists remain deeply",
+      "start": 239.06,
+      "end": 242.94,
+      "position": "bottom",
+      "bottom_offset_px": 80,
+      "font": "Philosopher",
+      "font_size": 60,
+      "color": {
+        "r": 0,
+        "g": 0,
+        "b": 0,
+        "a": 1
+      },
+      "stroke_color": {
+        "r": 255,
+        "g": 255,
+        "b": 255,
+        "a": 0.9
+      },
+      "stroke_width": 2,
+      "shadow": true,
+      "glow": false,
+      "max_width": 768,
+      "animation": {
+        "fade_in": 0.08,
+        "fade_out": 0.08
+      }
+    },
+    {
+      "content": "skeptical of any human involvement,",
+      "start": 243.255,
+      "end": 245.129,
+      "position": "bottom",
+      "bottom_offset_px": 80,
+      "font": "Philosopher",
+      "font_size": 60,
+      "color": {
+        "r": 0,
+        "g": 0,
+        "b": 0,
+        "a": 1
+      },
+      "stroke_color": {
+        "r": 255,
+        "g": 255,
+        "b": 255,
+        "a": 0.9
+      },
+      "stroke_width": 2,
+      "shadow": true,
+      "glow": false,
+      "max_width": 768,
+      "animation": {
+        "fade_in": 0.08,
+        "fade_out": 0.08
+      }
+    },
+    {
+      "content": "pointing out that nature is",
+      "start": 245.78,
+      "end": 247.26,
+      "position": "bottom",
+      "bottom_offset_px": 80,
+      "font": "Philosopher",
+      "font_size": 60,
+      "color": {
+        "r": 0,
+        "g": 0,
+        "b": 0,
+        "a": 1
+      },
+      "stroke_color": {
+        "r": 255,
+        "g": 255,
+        "b": 255,
+        "a": 0.9
+      },
+      "stroke_width": 2,
+      "shadow": true,
+      "glow": false,
+      "max_width": 768,
+      "animation": {
+        "fade_in": 0.08,
+        "fade_out": 0.08
+      }
+    },
+    {
+      "content": "fully capable of creating perfect",
+      "start": 247.26,
+      "end": 249.4,
+      "position": "bottom",
+      "bottom_offset_px": 80,
+      "font": "Philosopher",
+      "font_size": 60,
+      "color": {
+        "r": 0,
+        "g": 0,
+        "b": 0,
+        "a": 1
+      },
+      "stroke_color": {
+        "r": 255,
+        "g": 255,
+        "b": 255,
+        "a": 0.9
+      },
+      "stroke_width": 2,
+      "shadow": true,
+      "glow": false,
+      "max_width": 768,
+      "animation": {
+        "fade_in": 0.08,
+        "fade_out": 0.08
+      }
+    },
+    {
+      "content": "geometric shapes without our help.",
+      "start": 249.52,
+      "end": 251.642,
+      "position": "bottom",
+      "bottom_offset_px": 80,
+      "font": "Philosopher",
+      "font_size": 60,
+      "color": {
+        "r": 0,
+        "g": 0,
+        "b": 0,
+        "a": 1
+      },
+      "stroke_color": {
+        "r": 255,
+        "g": 255,
+        "b": 255,
+        "a": 0.9
+      },
+      "stroke_width": 2,
+      "shadow": true,
+      "glow": false,
+      "max_width": 768,
+      "animation": {
+        "fade_in": 0.08,
+        "fade_out": 0.08
+      }
+    },
+    {
+      "content": "So we are left with",
+      "start": 252.38,
+      "end": 253.7,
+      "position": "bottom",
+      "bottom_offset_px": 80,
+      "font": "Philosopher",
+      "font_size": 60,
+      "color": {
+        "r": 0,
+        "g": 0,
+        "b": 0,
+        "a": 1
+      },
+      "stroke_color": {
+        "r": 255,
+        "g": 255,
+        "b": 255,
+        "a": 0.9
+      },
+      "stroke_width": 2,
+      "shadow": true,
+      "glow": false,
+      "max_width": 768,
+      "animation": {
+        "fade_in": 0.08,
+        "fade_out": 0.08
+      }
+    },
+    {
+      "content": "a choice between two wonders:",
+      "start": 253.7,
+      "end": 256,
+      "position": "bottom",
+      "bottom_offset_px": 80,
+      "font": "Philosopher",
+      "font_size": 60,
+      "color": {
+        "r": 0,
+        "g": 0,
+        "b": 0,
+        "a": 1
+      },
+      "stroke_color": {
+        "r": 255,
+        "g": 255,
+        "b": 255,
+        "a": 0.9
+      },
+      "stroke_width": 2,
+      "shadow": true,
+      "glow": false,
+      "max_width": 768,
+      "animation": {
+        "fade_in": 0.08,
+        "fade_out": 0.08
+      }
+    },
+    {
+      "content": "a forgotten human empire, or",
+      "start": 256.38,
+      "end": 258.68,
+      "position": "bottom",
+      "bottom_offset_px": 80,
+      "font": "Philosopher",
+      "font_size": 60,
+      "color": {
+        "r": 0,
+        "g": 0,
+        "b": 0,
+        "a": 1
+      },
+      "stroke_color": {
+        "r": 255,
+        "g": 255,
+        "b": 255,
+        "a": 0.9
+      },
+      "stroke_width": 2,
+      "shadow": true,
+      "glow": false,
+      "max_width": 768,
+      "animation": {
+        "fade_in": 0.08,
+        "fade_out": 0.08
+      }
+    },
+    {
+      "content": "the slow, silent artistry of",
+      "start": 258.68,
+      "end": 260.96,
+      "position": "bottom",
+      "bottom_offset_px": 80,
+      "font": "Philosopher",
+      "font_size": 60,
+      "color": {
+        "r": 0,
+        "g": 0,
+        "b": 0,
+        "a": 1
+      },
+      "stroke_color": {
+        "r": 255,
+        "g": 255,
+        "b": 255,
+        "a": 0.9
+      },
+      "stroke_width": 2,
+      "shadow": true,
+      "glow": false,
+      "max_width": 768,
+      "animation": {
+        "fade_in": 0.08,
+        "fade_out": 0.08
+      }
+    },
+    {
+      "content": "the Earth itself.",
+      "start": 260.96,
+      "end": 261.94,
+      "position": "bottom",
+      "bottom_offset_px": 80,
+      "font": "Philosopher",
+      "font_size": 60,
+      "color": {
+        "r": 0,
+        "g": 0,
+        "b": 0,
+        "a": 1
+      },
+      "stroke_color": {
+        "r": 255,
+        "g": 255,
+        "b": 255,
+        "a": 0.9
+      },
+      "stroke_width": 2,
+      "shadow": true,
+      "glow": false,
+      "max_width": 768,
+      "animation": {
+        "fade_in": 0.08,
+        "fade_out": 0.08
+      }
+    },
+    {
+      "content": "But what lies behind all",
+      "start": 262.82,
+      "end": 264.62,
+      "position": "bottom",
+      "bottom_offset_px": 80,
+      "font": "Philosopher",
+      "font_size": 60,
+      "color": {
+        "r": 0,
+        "g": 0,
+        "b": 0,
+        "a": 1
+      },
+      "stroke_color": {
+        "r": 255,
+        "g": 255,
+        "b": 255,
+        "a": 0.9
+      },
+      "stroke_width": 2,
+      "shadow": true,
+      "glow": false,
+      "max_width": 768,
+      "animation": {
+        "fade_in": 0.08,
+        "fade_out": 0.08
+      }
+    },
+    {
+      "content": "this? Perhaps the true power",
+      "start": 264.62,
+      "end": 272.1,
+      "position": "bottom",
+      "bottom_offset_px": 80,
+      "font": "Philosopher",
+      "font_size": 60,
+      "color": {
+        "r": 0,
+        "g": 0,
+        "b": 0,
+        "a": 1
+      },
+      "stroke_color": {
+        "r": 255,
+        "g": 255,
+        "b": 255,
+        "a": 0.9
+      },
+      "stroke_width": 2,
+      "shadow": true,
+      "glow": false,
+      "max_width": 768,
+      "animation": {
+        "fade_in": 0.08,
+        "fade_out": 0.08
+      }
+    },
+    {
+      "content": "of the Bosnian stone spheres",
+      "start": 272.1,
+      "end": 274.011,
+      "position": "bottom",
+      "bottom_offset_px": 80,
+      "font": "Philosopher",
+      "font_size": 60,
+      "color": {
+        "r": 0,
+        "g": 0,
+        "b": 0,
+        "a": 1
+      },
+      "stroke_color": {
+        "r": 255,
+        "g": 255,
+        "b": 255,
+        "a": 0.9
+      },
+      "stroke_width": 2,
+      "shadow": true,
+      "glow": false,
+      "max_width": 768,
+      "animation": {
+        "fade_in": 0.08,
+        "fade_out": 0.08
+      }
+    },
+    {
+      "content": "lies not in how they",
+      "start": 274.515,
+      "end": 275.98,
+      "position": "bottom",
+      "bottom_offset_px": 80,
+      "font": "Philosopher",
+      "font_size": 60,
+      "color": {
+        "r": 0,
+        "g": 0,
+        "b": 0,
+        "a": 1
+      },
+      "stroke_color": {
+        "r": 255,
+        "g": 255,
+        "b": 255,
+        "a": 0.9
+      },
+      "stroke_width": 2,
+      "shadow": true,
+      "glow": false,
+      "max_width": 768,
+      "animation": {
+        "fade_in": 0.08,
+        "fade_out": 0.08
+      }
+    },
+    {
+      "content": "were made, but in how",
+      "start": 275.98,
+      "end": 277.6,
+      "position": "bottom",
+      "bottom_offset_px": 80,
+      "font": "Philosopher",
+      "font_size": 60,
+      "color": {
+        "r": 0,
+        "g": 0,
+        "b": 0,
+        "a": 1
+      },
+      "stroke_color": {
+        "r": 255,
+        "g": 255,
+        "b": 255,
+        "a": 0.9
+      },
+      "stroke_width": 2,
+      "shadow": true,
+      "glow": false,
+      "max_width": 768,
+      "animation": {
+        "fade_in": 0.08,
+        "fade_out": 0.08
+      }
+    },
+    {
+      "content": "they make us feel.",
+      "start": 277.6,
+      "end": 279.12,
+      "position": "bottom",
+      "bottom_offset_px": 80,
+      "font": "Philosopher",
+      "font_size": 60,
+      "color": {
+        "r": 0,
+        "g": 0,
+        "b": 0,
+        "a": 1
+      },
+      "stroke_color": {
+        "r": 255,
+        "g": 255,
+        "b": 255,
+        "a": 0.9
+      },
+      "stroke_width": 2,
+      "shadow": true,
+      "glow": false,
+      "max_width": 768,
+      "animation": {
+        "fade_in": 0.08,
+        "fade_out": 0.08
+      }
+    },
+    {
+      "content": "They act as mirrors for",
+      "start": 280.04,
+      "end": 281.54,
+      "position": "bottom",
+      "bottom_offset_px": 80,
+      "font": "Philosopher",
+      "font_size": 60,
+      "color": {
+        "r": 0,
+        "g": 0,
+        "b": 0,
+        "a": 1
+      },
+      "stroke_color": {
+        "r": 255,
+        "g": 255,
+        "b": 255,
+        "a": 0.9
+      },
+      "stroke_width": 2,
+      "shadow": true,
+      "glow": false,
+      "max_width": 768,
+      "animation": {
+        "fade_in": 0.08,
+        "fade_out": 0.08
+      }
+    },
+    {
+      "content": "our imagination, reflecting a deep",
+      "start": 281.54,
+      "end": 284.122,
+      "position": "bottom",
+      "bottom_offset_px": 80,
+      "font": "Philosopher",
+      "font_size": 60,
+      "color": {
+        "r": 0,
+        "g": 0,
+        "b": 0,
+        "a": 1
+      },
+      "stroke_color": {
+        "r": 255,
+        "g": 255,
+        "b": 255,
+        "a": 0.9
+      },
+      "stroke_width": 2,
+      "shadow": true,
+      "glow": false,
+      "max_width": 768,
+      "animation": {
+        "fade_in": 0.08,
+        "fade_out": 0.08
+      }
+    },
+    {
+      "content": "human desire to find patterns,",
+      "start": 284.23,
+      "end": 286.3,
+      "position": "bottom",
+      "bottom_offset_px": 80,
+      "font": "Philosopher",
+      "font_size": 60,
+      "color": {
+        "r": 0,
+        "g": 0,
+        "b": 0,
+        "a": 1
+      },
+      "stroke_color": {
+        "r": 255,
+        "g": 255,
+        "b": 255,
+        "a": 0.9
+      },
+      "stroke_width": 2,
+      "shadow": true,
+      "glow": false,
+      "max_width": 768,
+      "animation": {
+        "fade_in": 0.08,
+        "fade_out": 0.08
+      }
+    },
+    {
+      "content": "meaning, and lost history written",
+      "start": 287.062,
+      "end": 289.28,
+      "position": "bottom",
+      "bottom_offset_px": 80,
+      "font": "Philosopher",
+      "font_size": 60,
+      "color": {
+        "r": 0,
+        "g": 0,
+        "b": 0,
+        "a": 1
+      },
+      "stroke_color": {
+        "r": 255,
+        "g": 255,
+        "b": 255,
+        "a": 0.9
+      },
+      "stroke_width": 2,
+      "shadow": true,
+      "glow": false,
+      "max_width": 768,
+      "animation": {
+        "fade_in": 0.08,
+        "fade_out": 0.08
+      }
+    },
+    {
+      "content": "into the very bones of",
+      "start": 289.64,
+      "end": 291.12,
+      "position": "bottom",
+      "bottom_offset_px": 80,
+      "font": "Philosopher",
+      "font_size": 60,
+      "color": {
+        "r": 0,
+        "g": 0,
+        "b": 0,
+        "a": 1
+      },
+      "stroke_color": {
+        "r": 255,
+        "g": 255,
+        "b": 255,
+        "a": 0.9
+      },
+      "stroke_width": 2,
+      "shadow": true,
+      "glow": false,
+      "max_width": 768,
+      "animation": {
+        "fade_in": 0.08,
+        "fade_out": 0.08
+      }
+    },
+    {
+      "content": "the Earth. Whether the Podubravlje",
+      "start": 291.12,
+      "end": 293.9,
+      "position": "bottom",
+      "bottom_offset_px": 80,
+      "font": "Philosopher",
+      "font_size": 60,
+      "color": {
+        "r": 0,
+        "g": 0,
+        "b": 0,
+        "a": 1
+      },
+      "stroke_color": {
+        "r": 255,
+        "g": 255,
+        "b": 255,
+        "a": 0.9
+      },
+      "stroke_width": 2,
+      "shadow": true,
+      "glow": false,
+      "max_width": 768,
+      "animation": {
+        "fade_in": 0.08,
+        "fade_out": 0.08
+      }
+    },
+    {
+      "content": "sphere is the relic of",
+      "start": 293.9,
+      "end": 295.28,
+      "position": "bottom",
+      "bottom_offset_px": 80,
+      "font": "Philosopher",
+      "font_size": 60,
+      "color": {
+        "r": 0,
+        "g": 0,
+        "b": 0,
+        "a": 1
+      },
+      "stroke_color": {
+        "r": 255,
+        "g": 255,
+        "b": 255,
+        "a": 0.9
+      },
+      "stroke_width": 2,
+      "shadow": true,
+      "glow": false,
+      "max_width": 768,
+      "animation": {
+        "fade_in": 0.08,
+        "fade_out": 0.08
+      }
+    },
+    {
+      "content": "a forgotten empire or a",
+      "start": 295.28,
+      "end": 297.32,
+      "position": "bottom",
+      "bottom_offset_px": 80,
+      "font": "Philosopher",
+      "font_size": 60,
+      "color": {
+        "r": 0,
+        "g": 0,
+        "b": 0,
+        "a": 1
+      },
+      "stroke_color": {
+        "r": 255,
+        "g": 255,
+        "b": 255,
+        "a": 0.9
+      },
+      "stroke_width": 2,
+      "shadow": true,
+      "glow": false,
+      "max_width": 768,
+      "animation": {
+        "fade_in": 0.08,
+        "fade_out": 0.08
+      }
+    },
+    {
+      "content": "masterpiece of geological time, it",
+      "start": 297.71,
+      "end": 300.18,
+      "position": "bottom",
+      "bottom_offset_px": 80,
+      "font": "Philosopher",
+      "font_size": 60,
+      "color": {
+        "r": 0,
+        "g": 0,
+        "b": 0,
+        "a": 1
+      },
+      "stroke_color": {
+        "r": 255,
+        "g": 255,
+        "b": 255,
+        "a": 0.9
+      },
+      "stroke_width": 2,
+      "shadow": true,
+      "glow": false,
+      "max_width": 768,
+      "animation": {
+        "fade_in": 0.08,
+        "fade_out": 0.08
+      }
+    },
+    {
+      "content": "remains a monument of pure",
+      "start": 300.22,
+      "end": 302.28,
+      "position": "bottom",
+      "bottom_offset_px": 80,
+      "font": "Philosopher",
+      "font_size": 60,
+      "color": {
+        "r": 0,
+        "g": 0,
+        "b": 0,
+        "a": 1
+      },
+      "stroke_color": {
+        "r": 255,
+        "g": 255,
+        "b": 255,
+        "a": 0.9
+      },
+      "stroke_width": 2,
+      "shadow": true,
+      "glow": false,
+      "max_width": 768,
+      "animation": {
+        "fade_in": 0.08,
+        "fade_out": 0.08
+      }
+    },
+    {
+      "content": "wonder, drawing travelers and dreamers",
+      "start": 302.45,
+      "end": 305.34,
+      "position": "bottom",
+      "bottom_offset_px": 80,
+      "font": "Philosopher",
+      "font_size": 60,
+      "color": {
+        "r": 0,
+        "g": 0,
+        "b": 0,
+        "a": 1
+      },
+      "stroke_color": {
+        "r": 255,
+        "g": 255,
+        "b": 255,
+        "a": 0.9
+      },
+      "stroke_width": 2,
+      "shadow": true,
+      "glow": false,
+      "max_width": 768,
+      "animation": {
+        "fade_in": 0.08,
+        "fade_out": 0.08
+      }
+    },
+    {
+      "content": "from all over the world",
+      "start": 305.34,
+      "end": 306.72,
+      "position": "bottom",
+      "bottom_offset_px": 80,
+      "font": "Philosopher",
+      "font_size": 60,
+      "color": {
+        "r": 0,
+        "g": 0,
+        "b": 0,
+        "a": 1
+      },
+      "stroke_color": {
+        "r": 255,
+        "g": 255,
+        "b": 255,
+        "a": 0.9
+      },
+      "stroke_width": 2,
+      "shadow": true,
+      "glow": false,
+      "max_width": 768,
+      "animation": {
+        "fade_in": 0.08,
+        "fade_out": 0.08
+      }
+    },
+    {
+      "content": "to its silent, mossy resting",
+      "start": 307.1,
+      "end": 309.04,
+      "position": "bottom",
+      "bottom_offset_px": 80,
+      "font": "Philosopher",
+      "font_size": 60,
+      "color": {
+        "r": 0,
+        "g": 0,
+        "b": 0,
+        "a": 1
+      },
+      "stroke_color": {
+        "r": 255,
+        "g": 255,
+        "b": 255,
+        "a": 0.9
+      },
+      "stroke_width": 2,
+      "shadow": true,
+      "glow": false,
+      "max_width": 768,
+      "animation": {
+        "fade_in": 0.08,
+        "fade_out": 0.08
+      }
+    },
+    {
+      "content": "place. It forces us to",
+      "start": 309.505,
+      "end": 311.42,
+      "position": "bottom",
+      "bottom_offset_px": 80,
+      "font": "Philosopher",
+      "font_size": 60,
+      "color": {
+        "r": 0,
+        "g": 0,
+        "b": 0,
+        "a": 1
+      },
+      "stroke_color": {
+        "r": 255,
+        "g": 255,
+        "b": 255,
+        "a": 0.9
+      },
+      "stroke_width": 2,
+      "shadow": true,
+      "glow": false,
+      "max_width": 768,
+      "animation": {
+        "fade_in": 0.08,
+        "fade_out": 0.08
+      }
+    },
+    {
+      "content": "look closer at the world",
+      "start": 311.42,
+      "end": 312.84,
+      "position": "bottom",
+      "bottom_offset_px": 80,
+      "font": "Philosopher",
+      "font_size": 60,
+      "color": {
+        "r": 0,
+        "g": 0,
+        "b": 0,
+        "a": 1
+      },
+      "stroke_color": {
+        "r": 255,
+        "g": 255,
+        "b": 255,
+        "a": 0.9
+      },
+      "stroke_width": 2,
+      "shadow": true,
+      "glow": false,
+      "max_width": 768,
+      "animation": {
+        "fade_in": 0.08,
+        "fade_out": 0.08
+      }
+    },
+    {
+      "content": "around us and wonder what",
+      "start": 312.84,
+      "end": 314.84,
+      "position": "bottom",
+      "bottom_offset_px": 80,
+      "font": "Philosopher",
+      "font_size": 60,
+      "color": {
+        "r": 0,
+        "g": 0,
+        "b": 0,
+        "a": 1
+      },
+      "stroke_color": {
+        "r": 255,
+        "g": 255,
+        "b": 255,
+        "a": 0.9
+      },
+      "stroke_width": 2,
+      "shadow": true,
+      "glow": false,
+      "max_width": 768,
+      "animation": {
+        "fade_in": 0.08,
+        "fade_out": 0.08
+      }
+    },
+    {
+      "content": "else lies buried just beneath",
+      "start": 315.17,
+      "end": 317.08,
+      "position": "bottom",
+      "bottom_offset_px": 80,
+      "font": "Philosopher",
+      "font_size": 60,
+      "color": {
+        "r": 0,
+        "g": 0,
+        "b": 0,
+        "a": 1
+      },
+      "stroke_color": {
+        "r": 255,
+        "g": 255,
+        "b": 255,
+        "a": 0.9
+      },
+      "stroke_width": 2,
+      "shadow": true,
+      "glow": false,
+      "max_width": 768,
+      "animation": {
+        "fade_in": 0.08,
+        "fade_out": 0.08
+      }
+    },
+    {
+      "content": "our feet. When you look",
+      "start": 317.08,
+      "end": 319.12,
+      "position": "bottom",
+      "bottom_offset_px": 80,
+      "font": "Philosopher",
+      "font_size": 60,
+      "color": {
+        "r": 0,
+        "g": 0,
+        "b": 0,
+        "a": 1
+      },
+      "stroke_color": {
+        "r": 255,
+        "g": 255,
+        "b": 255,
+        "a": 0.9
+      },
+      "stroke_width": 2,
+      "shadow": true,
+      "glow": false,
+      "max_width": 768,
+      "animation": {
+        "fade_in": 0.08,
+        "fade_out": 0.08
+      }
+    },
+    {
+      "content": "at this colossal stone, what",
+      "start": 319.12,
+      "end": 321.28,
+      "position": "bottom",
+      "bottom_offset_px": 80,
+      "font": "Philosopher",
+      "font_size": 60,
+      "color": {
+        "r": 0,
+        "g": 0,
+        "b": 0,
+        "a": 1
+      },
+      "stroke_color": {
+        "r": 255,
+        "g": 255,
+        "b": 255,
+        "a": 0.9
+      },
+      "stroke_width": 2,
+      "shadow": true,
+      "glow": false,
+      "max_width": 768,
+      "animation": {
+        "fade_in": 0.08,
+        "fade_out": 0.08
+      }
+    },
+    {
+      "content": "do you see?",
+      "start": 321.28,
+      "end": 322.311,
+      "position": "bottom",
+      "bottom_offset_px": 80,
+      "font": "Philosopher",
+      "font_size": 60,
+      "color": {
+        "r": 0,
+        "g": 0,
+        "b": 0,
+        "a": 1
+      },
+      "stroke_color": {
+        "r": 255,
+        "g": 255,
+        "b": 255,
+        "a": 0.9
+      },
+      "stroke_width": 2,
+      "shadow": true,
+      "glow": false,
+      "max_width": 768,
+      "animation": {
+        "fade_in": 0.08,
+        "fade_out": 0.08
+      }
+    },
+    {
+      "content": "Do you see the hand",
+      "start": 322.88,
+      "end": 324.12,
+      "position": "bottom",
+      "bottom_offset_px": 80,
+      "font": "Philosopher",
+      "font_size": 60,
+      "color": {
+        "r": 0,
+        "g": 0,
+        "b": 0,
+        "a": 1
+      },
+      "stroke_color": {
+        "r": 255,
+        "g": 255,
+        "b": 255,
+        "a": 0.9
+      },
+      "stroke_width": 2,
+      "shadow": true,
+      "glow": false,
+      "max_width": 768,
+      "animation": {
+        "fade_in": 0.08,
+        "fade_out": 0.08
+      }
+    },
+    {
+      "content": "of an ancient builder, or",
+      "start": 324.12,
+      "end": 325.94,
+      "position": "bottom",
+      "bottom_offset_px": 80,
+      "font": "Philosopher",
+      "font_size": 60,
+      "color": {
+        "r": 0,
+        "g": 0,
+        "b": 0,
+        "a": 1
+      },
+      "stroke_color": {
+        "r": 255,
+        "g": 255,
+        "b": 255,
+        "a": 0.9
+      },
+      "stroke_width": 2,
+      "shadow": true,
+      "glow": false,
+      "max_width": 768,
+      "animation": {
+        "fade_in": 0.08,
+        "fade_out": 0.08
+      }
+    },
+    {
+      "content": "the patient hand of nature?",
+      "start": 325.94,
+      "end": 327.782,
+      "position": "bottom",
+      "bottom_offset_px": 80,
+      "font": "Philosopher",
+      "font_size": 60,
+      "color": {
+        "r": 0,
+        "g": 0,
+        "b": 0,
+        "a": 1
+      },
+      "stroke_color": {
+        "r": 255,
+        "g": 255,
+        "b": 255,
+        "a": 0.9
+      },
+      "stroke_width": 2,
+      "shadow": true,
+      "glow": false,
+      "max_width": 768,
+      "animation": {
+        "fade_in": 0.08,
+        "fade_out": 0.08
+      }
+    },
+    {
+      "content": "We want to hear your",
+      "start": 328.48,
+      "end": 329.78,
+      "position": "bottom",
+      "bottom_offset_px": 80,
+      "font": "Philosopher",
+      "font_size": 60,
+      "color": {
+        "r": 0,
+        "g": 0,
+        "b": 0,
+        "a": 1
+      },
+      "stroke_color": {
+        "r": 255,
+        "g": 255,
+        "b": 255,
+        "a": 0.9
+      },
+      "stroke_width": 2,
+      "shadow": true,
+      "glow": false,
+      "max_width": 768,
+      "animation": {
+        "fade_in": 0.08,
+        "fade_out": 0.08
+      }
+    },
+    {
+      "content": "theories, so share your thoughts",
+      "start": 329.78,
+      "end": 331.76,
+      "position": "bottom",
+      "bottom_offset_px": 80,
+      "font": "Philosopher",
+      "font_size": 60,
+      "color": {
+        "r": 0,
+        "g": 0,
+        "b": 0,
+        "a": 1
+      },
+      "stroke_color": {
+        "r": 255,
+        "g": 255,
+        "b": 255,
+        "a": 0.9
+      },
+      "stroke_width": 2,
+      "shadow": true,
+      "glow": false,
+      "max_width": 768,
+      "animation": {
+        "fade_in": 0.08,
+        "fade_out": 0.08
+      }
+    },
+    {
+      "content": "in the comments below.",
+      "start": 331.76,
+      "end": 333.12,
+      "position": "bottom",
+      "bottom_offset_px": 80,
+      "font": "Philosopher",
+      "font_size": 60,
+      "color": {
+        "r": 0,
+        "g": 0,
+        "b": 0,
+        "a": 1
+      },
+      "stroke_color": {
+        "r": 255,
+        "g": 255,
+        "b": 255,
+        "a": 0.9
+      },
+      "stroke_width": 2,
+      "shadow": true,
+      "glow": false,
+      "max_width": 768,
+      "animation": {
+        "fade_in": 0.08,
+        "fade_out": 0.08
+      }
+    },
+    {
+      "content": "If you want to help",
+      "start": 333.78,
+      "end": 334.68,
+      "position": "bottom",
+      "bottom_offset_px": 80,
+      "font": "Philosopher",
+      "font_size": 60,
+      "color": {
+        "r": 0,
+        "g": 0,
+        "b": 0,
+        "a": 1
+      },
+      "stroke_color": {
+        "r": 255,
+        "g": 255,
+        "b": 255,
+        "a": 0.9
+      },
+      "stroke_width": 2,
+      "shadow": true,
+      "glow": false,
+      "max_width": 768,
+      "animation": {
+        "fade_in": 0.08,
+        "fade_out": 0.08
+      }
+    },
+    {
+      "content": "our starting project grow, please",
+      "start": 334.68,
+      "end": 336.98,
+      "position": "bottom",
+      "bottom_offset_px": 80,
+      "font": "Philosopher",
+      "font_size": 60,
+      "color": {
+        "r": 0,
+        "g": 0,
+        "b": 0,
+        "a": 1
+      },
+      "stroke_color": {
+        "r": 255,
+        "g": 255,
+        "b": 255,
+        "a": 0.9
+      },
+      "stroke_width": 2,
+      "shadow": true,
+      "glow": false,
+      "max_width": 768,
+      "animation": {
+        "fade_in": 0.08,
+        "fade_out": 0.08
+      }
+    },
+    {
+      "content": "take a moment to like",
+      "start": 336.98,
+      "end": 338.26,
+      "position": "bottom",
+      "bottom_offset_px": 80,
+      "font": "Philosopher",
+      "font_size": 60,
+      "color": {
+        "r": 0,
+        "g": 0,
+        "b": 0,
+        "a": 1
+      },
+      "stroke_color": {
+        "r": 255,
+        "g": 255,
+        "b": 255,
+        "a": 0.9
+      },
+      "stroke_width": 2,
+      "shadow": true,
+      "glow": false,
+      "max_width": 768,
+      "animation": {
+        "fade_in": 0.08,
+        "fade_out": 0.08
+      }
+    },
+    {
+      "content": "this video and subscribe to",
+      "start": 338.26,
+      "end": 340.12,
+      "position": "bottom",
+      "bottom_offset_px": 80,
+      "font": "Philosopher",
+      "font_size": 60,
+      "color": {
+        "r": 0,
+        "g": 0,
+        "b": 0,
+        "a": 1
+      },
+      "stroke_color": {
+        "r": 255,
+        "g": 255,
+        "b": 255,
+        "a": 0.9
+      },
+      "stroke_width": 2,
+      "shadow": true,
+      "glow": false,
+      "max_width": 768,
+      "animation": {
+        "fade_in": 0.08,
+        "fade_out": 0.08
+      }
+    },
+    {
+      "content": "the channel. Thank you for",
+      "start": 340.12,
+      "end": 341.98,
+      "position": "bottom",
+      "bottom_offset_px": 80,
+      "font": "Philosopher",
+      "font_size": 60,
+      "color": {
+        "r": 0,
+        "g": 0,
+        "b": 0,
+        "a": 1
+      },
+      "stroke_color": {
+        "r": 255,
+        "g": 255,
+        "b": 255,
+        "a": 0.9
+      },
+      "stroke_width": 2,
+      "shadow": true,
+      "glow": false,
+      "max_width": 768,
+      "animation": {
+        "fade_in": 0.08,
+        "fade_out": 0.08
+      }
+    },
+    {
+      "content": "watching The Obscura.",
+      "start": 342.28,
+      "end": 343.475,
+      "position": "bottom",
+      "bottom_offset_px": 80,
+      "font": "Philosopher",
+      "font_size": 60,
+      "color": {
+        "r": 0,
+        "g": 0,
+        "b": 0,
+        "a": 1
+      },
+      "stroke_color": {
+        "r": 255,
+        "g": 255,
+        "b": 255,
+        "a": 0.9
+      },
+      "stroke_width": 2,
+      "shadow": true,
+      "glow": false,
+      "max_width": 768,
+      "animation": {
+        "fade_in": 0.08,
+        "fade_out": 0.08
+      }
+    },
+    {
+      "content": "Until next time, keep questioning",
+      "start": 344.02,
+      "end": 345.902,
+      "position": "bottom",
+      "bottom_offset_px": 80,
+      "font": "Philosopher",
+      "font_size": 60,
+      "color": {
+        "r": 0,
+        "g": 0,
+        "b": 0,
+        "a": 1
+      },
+      "stroke_color": {
+        "r": 255,
+        "g": 255,
+        "b": 255,
+        "a": 0.9
+      },
+      "stroke_width": 2,
+      "shadow": true,
+      "glow": false,
+      "max_width": 768,
+      "animation": {
+        "fade_in": 0.08,
+        "fade_out": 0.08
+      }
+    },
+    {
+      "content": "what you see.",
+      "start": 346.36,
+      "end": 347.379,
+      "position": "bottom",
+      "bottom_offset_px": 80,
+      "font": "Philosopher",
+      "font_size": 60,
+      "color": {
+        "r": 0,
+        "g": 0,
+        "b": 0,
+        "a": 1
+      },
+      "stroke_color": {
+        "r": 255,
+        "g": 255,
+        "b": 255,
+        "a": 0.9
+      },
+      "stroke_width": 2,
+      "shadow": true,
+      "glow": false,
+      "max_width": 768,
+      "animation": {
+        "fade_in": 0.08,
+        "fade_out": 0.08
+      }
+    }
+  ],
+  "output": {
+    "format": "mp4",
+    "filename": "20260710_015158_571_final.mp4",
+    "fps": 24,
+    "bitrate": "10M",
+    "resolution": {
+      "width": 1920,
+      "height": 1080
+    }
+  },
+  "subtitles_visible": true
+}
