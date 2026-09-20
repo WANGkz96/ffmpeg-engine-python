@@ -3066,8 +3066,10 @@ class VideoEngine:
         for effect in effects:
             if str(getattr(effect, "type", "")) != "reverb":
                 continue
-            start = max(float(getattr(effect, "start", 0.0)) - timeline_start, 0.0)
-            end = max(float(getattr(effect, "end", start)) - timeline_start, start)
+            # Keep negative local times: cutting a track inside an existing
+            # scene must not restart its reverb fade at the new fragment edge.
+            start = float(getattr(effect, "start", 0.0)) - timeline_start
+            end = float(getattr(effect, "end", 0.0)) - timeline_start
             mix = min(max(float(getattr(effect, "mix", 0.16)), 0.0), 1.0)
             if end <= start or mix <= 0.0:
                 continue
